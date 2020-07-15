@@ -1,6 +1,6 @@
 {
   "name": "lva-edge-gateway",
-  "version": "2.0.107",
+  "version": "1.0.0",
   "description": "Azure IoT Central gateway module for Azure Media Services LVA Edge",
   "main": "index.js",
   "scripts": {
@@ -16,10 +16,6 @@
   },
   "author": "sseiber",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git@github.com:sseiber/lva-gateway.git"
-  },
   "dependencies": {
     "@hapi/boom": "^9.1.0",
     "@hapi/hapi": "^19.1.1",
