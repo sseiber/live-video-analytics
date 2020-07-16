@@ -142,12 +142,12 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
         // TODO:
         // Introduce some ONVIF tech to get camera props
         return {
-            manufacturer: 'Axis',
-            model: '1367',
+            manufacturer: 'AAA',
+            model: '1000',
             swVersion: 'v1.0.0',
-            osName: 'Axis OS',
-            processorArchitecture: 'Axis CPU',
-            processorManufacturer: 'Axis',
+            osName: 'AAA OS',
+            processorArchitecture: 'AAA CPU',
+            processorManufacturer: 'AAA',
             totalStorage: 0,
             totalMemory: 0
         };
