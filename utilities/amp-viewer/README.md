@@ -1,11 +1,11 @@
 # AMP viewer
-This sample project is a web app and micro service which hosts the Azure Media Player. Please see the [full documentation for Azure Media Player](https://docs.microsoft.com/en-us/azure/media-services/latest/use-azure-media-player).
+This sample project is a web app and micro service which hosts the Azure Media Player. Please see the [full documentation for Azure Media Player](https://docs.microsoft.com/azure/media-services/latest/use-azure-media-player).
 
 The amp-viewer utility is capable of playing back videos recorded as assets in Azure Media Services. The utility requires you to provide a URL in the following format.
 
-The url includes an Azure Media Services `asset` [see AMS Documentation here](https://docs.microsoft.com/en-us/azure/media-services/latest/assets-concept).
+The URL includes an Azure Media Services `asset` [see AMS Documentation here](https://docs.microsoft.com/azure/media-services/latest/assets-concept).
 
-The format of the url is:
+The format of the URL is:
 ```
 http://<this_host>:<this_host_port>/ampplayer?ac=<ams_accountname>&an=<ams_assetname>&st=<start_time>
 ```
@@ -19,9 +19,9 @@ An example after building and running this project would be:
 http://localhost:8094/ampplayer?ac=ams_account&an=ams_asset&st=2020-05-23T00:35:00Z
 ```
 
-*Note that the Azure Media asset should already have a streaming locater in order for the amp-viewer utility to stream it. See the Azure Media documentation on [Streaming Locators](https://docs.microsoft.com/en-us/azure/media-services/latest/streaming-locators-concept)*
+*Note that the Azure Media asset should already have a streaming locater in order for the amp-viewer utility to stream it. See the documentation on [Streaming Locators](https://docs.microsoft.com/azure/media-services/latest/streaming-locators-concept) for more information. You can create locators using the Azure Portal as described [here](https://docs.microsoft.com/azure/media-services/latest/manage-assets-quickstart#streaming-locator)*
 
-The url will render the Azure Media Player and stream video from the Azure Media Service for playback. This utility is used with the reference app [Azure IoT Central live video analytics gateway module](https://github.com/Azure/live-video-analytics/tree/master/ref-apps/lva-edge-iot-central-gateway) project. This reference app records video clips into assets when objects are detected in the incoming live video, and creates URLs for those assets. This utility then allows users to view those recordings.
+The URL will render the Azure Media Player and stream video from the Azure Media Service for playback. This utility is used with the reference app [Azure IoT Central live video analytics gateway module](https://github.com/Azure/live-video-analytics/tree/master/ref-apps/lva-edge-iot-central-gateway) project. This reference app records video clips into assets when objects are detected in the incoming live video, and creates URLs for those assets. This utility then allows users to view those recordings.
 
 ## Dependencies
   * Node
@@ -66,7 +66,7 @@ The url will render the Azure Media Player and stream video from the Azure Media
     ```
 
 ## Run the docker container image
-You need to create an Azure Media account and then collect the information corresponding to the parameters listed below. You can follow the instructions here to create an [Azure Media Services account](https://docs.microsoft.com/en-us/azure/media-services/latest/create-account-howto).
+You need to create an Azure Media account and then collect the information corresponding to the parameters listed below. You can follow the instructions here to create an [Azure Media Services account](https://docs.microsoft.com/azure/media-services/latest/create-account-howto).
 ```
 docker run \
     -it \
