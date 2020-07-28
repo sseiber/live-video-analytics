@@ -1090,7 +1090,7 @@ export class ModuleService {
                 await commandResponse.send(202);
                 await this.updateModuleProperties({
                     [LvaGatewayInterface.Command.AddCamera]: {
-                        value: `The ${LvaGatewayInterface.Command.DeleteCamera} command is missing required parameters, cameraId, cameraName, rtspUrl, rtspAuthUsername, rtspAuthPassword, detectionType`
+                        value: `The ${LvaGatewayInterface.Command.AddCamera} command is missing required parameters, cameraId, cameraName, rtspUrl, rtspAuthUsername, rtspAuthPassword, detectionType`
                     }
                 });
 
