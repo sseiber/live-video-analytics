@@ -7,14 +7,7 @@
                     "type": "docker",
                     "settings": {
                         "minDockerVersion": "v1.25",
-                        "loggingOptions": "",
-                        "registryCredentials": {
-                            "<CONTAINER_REGISTRY_NAME>": {
-                                "address": "<CONTAINER_REGISTRY_ADDRESS>",
-                                "password": "<CONTAINER_REGISTRY_PASSWORD>",
-                                "username": "<CONTAINER_REGISTRY_NAME>"
-                            }
-                        }
+                        "loggingOptions": ""
                     }
                 },
                 "systemModules": {
@@ -38,7 +31,7 @@
                 "modules": {
                     "LvaEdgeGatewayModule": {
                         "settings": {
-                            "image": "<YOUR_GATEWAY_IMAGE_NAME>",
+                            "image": "mcr.microsoft.com/lva-utilities/lva-edge-iotc-gateway:1.0-amd64",
                             "createOptions": "{\"HostConfig\":{\"PortBindings\":{\"9070/tcp\":[{\"HostPort\":\"9070\"}]},\"Binds\":[\"/data/storage:/data/storage\",\"/data/media:/data/media/\"]}}"
                         },
                         "type": "docker",
@@ -134,8 +127,8 @@
                 "aadTenantId": "<FROM_AZURE_PORTAL>",
                 "aadServicePrincipalAppId": "<FROM_AZURE_PORTAL>",
                 "aadServicePrincipalSecret": "<FROM_AZURE_PORTAL>",
-                "aadResourceId": "<FROM_AZURE_PORTAL>",
-                "armEndpoint": "<FROM_AZURE_PORTAL>",
+                "aadResourceId": "https://management.core.windows.net/",
+                "armEndpoint": "https://management.azure.com/",
                 "diagnosticsEventsOutputName": "AmsDiagnostics",
                 "operationalEventsOutputName": "AmsOperational",
                 "logLevel": "Information",

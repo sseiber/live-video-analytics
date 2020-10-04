@@ -627,9 +627,6 @@ export class ModuleService {
                             json: true
                         });
 
-                    // TODO:
-                    // This tag is no longer needed as it is possible to test for the existance of a known interface
-                    // for the device model (e.g. AiInferenceInterface, LvaEdgeDiagnosticsInterface, or LvaEdgeOperationsInterface)
                     if (devicePropertiesResponse.payload.IoTCameraInterface?.[AmsDeviceTag] === `${this.iotcGatewayInstanceId}:${AmsDeviceTagValue}`) {
                         const deviceInterfaceProperties = devicePropertiesResponse.payload.IoTCameraInterface;
 
