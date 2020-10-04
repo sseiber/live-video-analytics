@@ -7,7 +7,6 @@
         "test": "node ./node_modules/jest/bin/jest.js",
         "tslint": "node ./node_modules/tslint/bin/tslint -p ./tsconfig.json -e '**/client_dist/**'",
         "build": "./node_modules/.bin/webpack --color --config configs/webpack.prod.js --mode production",
-        "copybuildxx": "./node_modules/cpr/bin/cpr client_dist ../amp-viewer/client_dist -d",
         "copybuild": "rimraf ../amp-viewer/client_dist && ncp client_dist ../amp-viewer/client_dist",
         "preversion": "npm test",
         "version": "npm run build",
