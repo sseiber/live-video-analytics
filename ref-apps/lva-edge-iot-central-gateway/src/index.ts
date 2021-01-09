@@ -12,16 +12,16 @@ const composeOptions: ComposeOptions = {
     relativeTo: __dirname,
     logCompose: {
         serializers: {
-            req: (req) => {
-                return `${(req.method || '').toUpperCase()} ${req.url?.origin} ${req.url?.pathname}`;
+            req: (req: any) => {
+                return `${(req.method || '').toUpperCase()} ${req.headers?.host} ${req.url}`;
             },
-            res: (res) => {
+            res: (res: any) => {
                 return `${res.statusCode} ${res.raw?.statusMessage}`;
             },
-            tags: (tags) => {
+            tags: (tags: any) => {
                 return `[${tags}]`;
             },
-            responseTime: (responseTime) => {
+            responseTime: (responseTime: any) => {
                 return `${responseTime}ms`;
             }
         },
