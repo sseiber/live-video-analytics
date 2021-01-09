@@ -858,6 +858,8 @@ export class ModuleService {
             const dpsConnectionString = await new Promise<string>((resolve, reject) => {
                 provisioningClient.register((dpsError, dpsResult) => {
                     if (dpsError) {
+                        this.server.log(['ModuleService', 'error'], `DPS register failed: ${JSON.stringify(dpsError, null, 4)}`);
+
                         return reject(dpsError);
                     }
 
