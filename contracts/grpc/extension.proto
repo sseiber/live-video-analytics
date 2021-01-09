@@ -66,6 +66,7 @@ message MediaStreamDescriptor {
     GraphIdentifier graph_identifier = 1;     // Media Stream graph identifier
     string extension_identifier = 2;          // Media Stream extension identifier
   }
+  string extension_configuration = 3;         // Optional extension configuration string provided by the user
 
   MediaDescriptor media_descriptor = 5;       // Session media information.
 

@@ -1,13 +1,24 @@
-/*************************************************************************
-* Use this scratchpad to collect all the IDs, secrets, and relevant resource information 
-* from AMS and IoT Central to complete the Live Video Analytics deployment.
-* There is a reference to tutorial, section, and paragraph.
-*************************************************************************/
+*************************************************************************
+* Download and use this scratchpad to collect all the IDs, secrets, and
+* relevant resource information from AMS and IoT Central to complete the
+* Live Video Analytics deployment.
+*
+* Each section has a reference to the tutorial, section, and paragraph
+* where you capture the value.
+*************************************************************************
 
 # Tutorial: Create a video analytics - security and safety application in Azure IoT Central
 ## Deploy and configure Azure Media Services
 
-When the deployment is complete, navigate to the Properties page for your Media Services account. Make a note of the Resource ID in the scratchpad.txt file, you use this value later when you configure the IoT Edge module.
+Make a note of your Media Services account name in the scratchpad.txt file.
+
+------------------------------------
+Media Service account name
+[Paste here]
+------------------------------------
+
+When the deployment is complete, open a Cloud Shell and run the following command to retrieve the Resource ID for your media service account:
+az resource list --resource-group lva-rg --resource-type microsoft.media/mediaservices --output table --query "[].{ResourceID:id}"
 
 ------------------------------------
 Resource ID
@@ -19,20 +30,19 @@ Sample:
 
 When the secret is generated, scroll down to the Copy your credentials to connect your service principal application section. Then select JSON. You can copy all the credential information from here in one go. Make a note of this information in the scratchpad.txt file, you use it later when you configure the IoT Edge device.
 
-Connect to Media Services API (JSON)
 ------------------------------------
+Connect to Media Services API (JSON)
 [Paste here]
-
 ------------------------------------
 Sample:
 {
-	"AadClientId": "<AAD Client ID>",
-	"AadSecret": "<AAD secret>",
-	"AadTenantDomain": "mesh-systems.com",
-	"AadTenantId": "<TENANT_ID>",
+	"AadClientId": "<will be azureMediaServicesArmId in deployment manifest>",
+	"AadSecret": "<will be aadServicePrincipalSecret in deployment manifest>",
+	"AadTenantDomain": "<TENANT_NAME>",
+	"AadTenantId": "<will be aadTenantId in deployment manifest>",
 	"AccountName": "<AccountName>",
 	"Location": "East US",
-	"ResourceGroup": "<ResourceGroup>",
+	"ResourceGroup": "lva-rg",
 	"SubscriptionId": "<SubscriptionId>",
 	"ArmAadAudience": "https://management.core.windows.net",
 	"ArmEndpoint": "https://management.azure.com"
@@ -58,7 +68,7 @@ Sample:
 
 Select API Tokens and generate a new token called LVAEdgeToken for the Operator role:
 ------------------------------------
-API Token
+Operator API Token
 [Paste here]
 ------------------------------------
 Sample:
@@ -66,12 +76,11 @@ SharedAccessSignature sr=[GUID]&sig=[SECRET_STRING]=lvaedgetoken&se=[SALT]
 
 In the Administration section, select Device connection, and then select SAS-IoT-Devices.
 ------------------------------------
-Primary key
+SAS-IoT-Devices group primary key
 [Paste here]
 ------------------------------------
 This is a Base64 secret, about 90 characters long
 
-## Add a gateway device
 ### Get the device credentials
 You need the credentials that allow the device to connect to your IoT Central application. The get the device credentials:
 ------------------------------------
@@ -84,10 +93,18 @@ Sample: 0neXXXXXXXX
 Device ID
 [Paste here]
 ------------------------------------
-Sample: camera-003 
+Sample: gateway-003 
  
 ------------------------------------
-Primary Key
+Device primary key
 [Paste here]
 ------------------------------------
 This is a Base64 secret, about 45 characters long
+
+# Tutorial: Create an IoT Edge instance for video analytics
+## Deploy Azure IoT Edge
+
+------------------------------------
+Admin Password
+[Paste here]
+------------------------------------

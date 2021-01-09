@@ -53,10 +53,11 @@ class State:
             raise
 
 class InferenceEngine(extension_pb2_grpc.MediaGraphExtensionServicer):
-    def __init__(self):
+    def __init__(self, inferenceConfidence):
         # create ONNX model wrapper
         # Thread safe shared resource among all clients
         self._tYoloV3 = YoloV3Model()
+        self.inferenceConfidence = inferenceConfidence
 
     # Debug method for dumping received images with analysis results
     def CreateDebugOutput(self, requestSeqNum, cvImage, boxes, scores, indices, confidenceThreshold=0.1):
@@ -88,17 +89,13 @@ class InferenceEngine(extension_pb2_grpc.MediaGraphExtensionServicer):
             PrintGetExceptionDetails()
             raise
 
-    def GetMediaStreamMessageResponse(self, boxes, scores, indices, imgShape, confidenceThreshold=0.1):
+    def GetMediaStreamMessageResponse(self, msg, boxes, scores, indices, imgShape, timestamp, confidenceThreshold=0.1):
         try:
-            msg = extension_pb2.MediaStreamMessage()
-
             ih, iw, _ = imgShape
-
             for idx in indices:
                 confidenceScore = scores[tuple(idx)].tolist()
                 if confidenceScore >= confidenceThreshold:
                     objectLabel = self._tYoloV3._labelList[idx[1].tolist()]
-
                     idxTuple = (idx[0], idx[2])
                     ymin, xmin, ymax, xmax = boxes[idxTuple].tolist()
 
@@ -117,6 +114,7 @@ class InferenceEngine(extension_pb2_grpc.MediaGraphExtensionServicer):
                                                     )
                                                 )
                                             )
+
             return msg
         except:
             PrintGetExceptionDetails()
@@ -182,7 +180,7 @@ class InferenceEngine(extension_pb2_grpc.MediaGraphExtensionServicer):
         logging.debug('[Received] SeqNum: {0:07d} | AckNum: {1}'.format(requestSeqNum, requestAckSeqNum))
 
         # First message response ...
-        mediaStreamMessage =    extension_pb2.MediaStreamMessage(
+        mediaStreamMessage = extension_pb2.MediaStreamMessage(
                                     sequence_number = responseSeqNum,
                                     ack_sequence_number = requestSeqNum,
                                     media_stream_descriptor = extension_pb2.MediaStreamDescriptor(
@@ -221,23 +219,58 @@ class InferenceEngine(extension_pb2_grpc.MediaGraphExtensionServicer):
                     context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                     return
 
-                # run inference
-                boxes, scores, indices = self._tYoloV3.Score(cvImage)
+                mediaStreamMessage = extension_pb2.MediaStreamMessage()
 
-                logging.debug('Detected {0} inferences'.format(len(indices)))
+                # Check confidence
+                allConfidenceReached = True
+                for inference in mediaStreamMessageRequest.media_sample.inferences:
+                    confidence = inference.entity.tag.confidence
+                    if(confidence < self.inferenceConfidence):
+                        allConfidenceReached = False
+                        break
+                
+                if(len(mediaStreamMessageRequest.media_sample.inferences) > 0 and allConfidenceReached):
+                    # Return acknowledge message
+                    mediaStreamMessage.sequence_number = responseSeqNum
+                    mediaStreamMessage.ack_sequence_number = requestSeqNum
+                    mediaStreamMessage.media_sample.timestamp = mediaStreamMessageRequest.media_sample.timestamp
+                    
+                    for tinyYoloInference in mediaStreamMessageRequest.media_sample.inferences:
+                        objectLabel = tinyYoloInference.entity.tag.value
+                        inference = mediaStreamMessage.media_sample.inferences.add()
+                        inference.type = inferencing_pb2.Inference.InferenceType.ENTITY
+                        inference.subtype = 'From upstream'
+                        inference.entity.CopyFrom(inferencing_pb2.Entity(
+                                                        tag = inferencing_pb2.Tag(
+                                                            value = objectLabel,
+                                                            confidence = tinyYoloInference.entity.tag.confidence
+                                                        ),
+                                                        box = inferencing_pb2.Rectangle(
+                                                            l = tinyYoloInference.entity.box.l,
+                                                            t = tinyYoloInference.entity.box.t,
+                                                            w = tinyYoloInference.entity.box.w,
+                                                            h = tinyYoloInference.entity.box.h,
+                                                        )
+                                                    )
+                                                )
+                else:
+                    # run inference
+                    boxes, scores, indices = self._tYoloV3.Score(cvImage)
 
-                if DEBUG is not None:
-                    self.CreateDebugOutput(requestSeqNum, cvImage, boxes, scores, indices)
+                    logging.debug('Detected {0} inferences'.format(len(indices)))
 
-                # Check client connection state
-                if context.is_active():
+                    if DEBUG is not None:
+                        self.CreateDebugOutput(requestSeqNum, cvImage, boxes, scores, indices)
+
                     # return inference result as MediaStreamMessage
-                    mediaStreamMessage = self.GetMediaStreamMessageResponse(boxes, scores, indices, cvImage.shape)
+                    mediaStreamMessage = self.GetMediaStreamMessageResponse(mediaStreamMessage, boxes, scores, indices, cvImage.shape, mediaStreamMessageRequest.media_sample.timestamp)
 
                     mediaStreamMessage.sequence_number = responseSeqNum
                     mediaStreamMessage.ack_sequence_number = requestSeqNum
                     mediaStreamMessage.media_sample.timestamp = mediaStreamMessageRequest.media_sample.timestamp
 
+                # Check client connection state
+                if context.is_active():
                     # yield response
                     yield mediaStreamMessage
                 else:

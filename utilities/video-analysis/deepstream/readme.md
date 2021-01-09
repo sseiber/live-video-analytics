@@ -24,18 +24,19 @@ docker build -f ./docker/Dockerfile -t lva-gst-deepstream:latest .
 
 ## Push image to a container registry
 
-Follow instruction in [Push and Pull Docker images - Azure Container Registry](http://docs.microsoft.com/en-us/azure/container-registry/container-registry-get-started-docker-cli) to save the docker image in Azure Container Registry. Alternatively, you can upload the image to [docker hub](https://hub.docker.com).
+Follow instruction on the `/utilities/video-analysis/readme.md`, in the section [Instructions on pushing the container image to Azure Container Registry](../readme.md#instructions-on-pushing-the-container-image-to-azure-container-registry).
 
 ## Getting Started
-On VSCode, [set up the environment](https://github.com/Azure/live-video-analytics/blob/master/utilities/video-analysis/notebooks/common/setup_environment.ipynb) so that we can test and deploy LVA.
+1. Install the [requirements for running LVA Jupyter notebook](https://github.com/Azure/live-video-analytics/blob/master/utilities/video-analysis/notebooks/common/requirements.md) samples on your development PC.
 
-Create the required [Azure services](https://github.com/Azure/live-video-analytics/blob/master/utilities/video-analysis/notebooks/common/create_azure_services.ipynb).
+2. On VSCode, [set up the environment](https://github.com/Azure/live-video-analytics/blob/master/utilities/video-analysis/notebooks/common/setup_environment.ipynb) so that we can test and deploy LVA.
 
-Follow the intructions for setting up the environment.
+3. Create the required [Azure services](https://github.com/Azure/live-video-analytics/blob/master/utilities/video-analysis/notebooks/common/create_azure_services.ipynb).
 
-You will need a development PC and also an IoT Edge device to run LVA and LVA extension container. If you don't have a physical IoT Edge device, you can [create an Azure virtual machine](https://github.com/Azure/live-video-analytics/blob/master/utilities/video-analysis/notebooks/common/create_azure_vm.ipynb) and configure it properly. **Note:** You must create a GPU accelerated VM such as the Standard_NC6 VM, which has an NVIDIA GPU.
+4. Follow the intructions for setting up the environment. You will need a development PC and also an IoT Edge device to run LVA and LVA extension container. If you don't have a physical IoT Edge device, you can [create an Azure virtual machine](https://github.com/Azure/live-video-analytics/blob/master/utilities/video-analysis/notebooks/common/create_azure_vm.ipynb) and configure it properly. **Note:** You must create a GPU accelerated VM. NVIDIA® DeepStream Software Development Kit (SDK) runs on NVIDIA® T4 and platforms such as NVIDIA® Jetson. We recommend creating a [NCasT4_v3-series](https://docs.microsoft.com/en-us/azure/virtual-machines/nct4-v3-series) size VM which are powered by NVIDIA Tesla T4 GPUS.
 
-Please [install the appropriate drivers and IoT Edge Runtime](https://github.com/Azure/live-video-analytics/blob/master/utilities/video-analysis/notebooks/common/install_iotedge_runtime_gpu.md) on the Azure VM.
+5. Install [NVIDIA GPU drivers on Linux N-series VM](https://docs.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux).
+6. Install [Azure IoT Edge runtime](https://docs.microsoft.com/en-us/azure/iot-edge/how-to-install-iot-edge?tabs=linux).
 
 ## Deployment
 
@@ -70,7 +71,7 @@ To test the docker container you will need to create a graph topology with gRPC 
         {
             "opName": "GraphTopologySet",
             "opParams": {
-                "topologyFile": "gstreamer.json"
+                "topologyFile": "grpc-extension.json"
             }
         },
         {

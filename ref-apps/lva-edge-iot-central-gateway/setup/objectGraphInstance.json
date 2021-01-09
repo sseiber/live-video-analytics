@@ -1,5 +1,5 @@
 {
-    "@apiVersion": "1.0",
+    "@apiVersion": "2.0",
     "name": "",
     "properties": {
         "description": "Object detection graph using Yolo3 through HTTP Extension",
@@ -20,10 +20,6 @@
             {
                 "name": "assetName",
                 "value": ""
-            },
-            {
-                "name": "frameRate",
-                "value": 2
             }
         ]
     }

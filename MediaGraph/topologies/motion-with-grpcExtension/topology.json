@@ -50,19 +50,7 @@
           "type": "String",
           "description": "Hub sink output name",
           "default": "iothubsinkoutput"
-        },
-        {
-          "name": "imageEncoding",
-          "type": "String",
-          "description": "image encoding for frames",
-          "default": "jpeg"
         },      
-        {
-          "name": "imageQuality",
-          "type": "String",
-          "description": "image encoding quality for frames (valid for JPG encoding)",
-          "default": "90"
-        },
         {
           "name": "imageScaleMode",
           "type": "String",
@@ -163,9 +151,8 @@
               "height": "${frameHeight}"
             },
             "format": {
-              "@type": "#Microsoft.Media.MediaGraphImageFormatEncoded",
-              "encoding": "${imageEncoding}",
-              "quality": "${imageQuality}"
+              "@type": "#Microsoft.Media.MediaGraphImageFormatRaw",
+              "pixelFormat": "rgb24"               
             }
           },
           "inputs": [

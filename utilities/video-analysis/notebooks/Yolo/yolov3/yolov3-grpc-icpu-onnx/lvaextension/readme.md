@@ -1,6 +1,6 @@
 # YOLOv3 ONNX models with gRPC
 
-The following instructions will enable you to build a Docker container with a [YOLOv3](http://pjreddie.com/darknet/yolo/) [ONNX](http://onnx.ai/) model running behind a gRPC endpoint.
+The following instructions will enable you to build a Docker container with a [YOLOv3](http://pjreddie.com/darknet/yolo/) [ONNX](http://onnx.ai/) model running behind a gRPC endpoint. If the YOLOv3 is used in a composite topology, it will use the configured inference confidence to determine whether to run inferences using the YOLOv3 or return the inference results from the upstream module. You can specify the inference confidence by passing the -c parameter, by default the inference confidence is set to 0.75.
 
 
 ## Contributions needed

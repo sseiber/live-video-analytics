@@ -1,0 +1,63 @@
+{
+    "@apiVersion": "2.0",
+    "name": "AudioVideo",
+    "properties": {
+      "description": "Record video clip including audio",
+      "parameters": [{
+        "name": "rtspUserName",
+        "type": "String",
+        "description": "rtsp source user name.",
+        "default": "dummyUserName"
+      },
+      {
+        "name": "rtspPassword",
+        "type": "String",
+        "description": "rtsp source password.",
+        "default": "dummyPassword"
+      },
+      {
+        "name": "rtspUrl",
+        "type": "String",
+        "description": "rtsp Url"
+      }],
+      "sources": [
+        {
+          "@type": "#Microsoft.Media.MediaGraphRtspSource",
+          "transport": "Tcp",
+          "endpoint": {
+            "@type": "#Microsoft.Media.MediaGraphUnsecuredEndpoint",
+            "credentials": {
+              "@type": "#Microsoft.Media.MediaGraphUsernamePasswordCredentials",
+              "username": "${rtspUserName}",
+              "password": "${rtspPassword}"
+            },
+            "url": "${rtspUrl}"
+          },
+          "name": "rtspSource"
+        }
+      ],
+      "processors": [],
+      "sinks": [
+        {
+          "@type": "#Microsoft.Media.MediaGraphAssetSink",
+          "assetNamePattern": "sampleAsset-${System.GraphTopologyName}-${System.GraphInstanceName}",
+          "segmentLength": "PT30S",
+          "localMediaCachePath": "/var/lib/azuremediaservices/tmp/",
+          "localMediaCacheMaximumSizeMiB": "20",
+          "name": "assetSink",
+          "inputs": [
+            {
+              "nodeName": "rtspSource",
+              "outputSelectors": [
+                {
+                  "property": "mediaType",
+                  "operator": "isNot",
+                  "value": "application"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+}

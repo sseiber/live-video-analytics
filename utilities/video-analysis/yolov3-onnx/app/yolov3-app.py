@@ -130,6 +130,20 @@ def draw_bounding_boxes(image: Image, detected_objects: list):
     return image
 
 
+def letterbox_image(image, size):
+    '''Resize image with unchanged aspect ratio using padding'''
+    iw, ih = image.size
+    w, h = size
+    scale = min(w/iw, h/ih)
+    nw = int(iw*scale)
+    nh = int(ih*scale)
+
+    image = image.resize((nw,nh), Image.BICUBIC)
+    new_image = Image.new('RGB', size, (128,128,128))
+    new_image.paste(image, ((w-nw)//2, (h-nh)//2))
+
+    return new_image
+
 def load_image(request: Request):
     try:
         image_data = io.BytesIO(request.get_data())
@@ -137,9 +151,11 @@ def load_image(request: Request):
     except Exception:
         abort(Response(response='Could not decode image', status=400))
 
-    # Sizing and letterboxing is done by the HttpExtension node within LVA
+    # If size is not 416x416 then resize
     if image.size != model.input_size:
-        abort(Response(response=f'Image must be {model.input_size[0]}x{model.input_size[1]}', status=400))
+        model_image_size = (416, 416)
+        new_image = image
+        image = letterbox_image(new_image, tuple(reversed(model_image_size)))
 
     return image
 
@@ -163,7 +179,7 @@ def stream(id):
                 "<img src=\"/mjpeg/" + id + "\"/>"
                 "</html>")
 
-    return Response(respBody, status= 200)
+    return Response(respBody, status=200)
 
 # /score routes to scoring function 
 # This function returns a JSON object with inference duration and detected objects

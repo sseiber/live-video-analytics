@@ -307,7 +307,7 @@ The entire /images folder will be copied to ./images on your host machine. Image
 
 ## Upload Docker image to Azure container registry
 
-Follow instructions in [Push and Pull Docker images  - Azure Container Registry](http://docs.microsoft.com/en-us/azure/container-registry/container-registry-get-started-docker-cli) to save your image for later use on another machine.
+Follow instruction on the `/utilities/video-analysis/readme.md`, in the section [Instructions on pushing the container image to Azure Container Registry](../readme.md#instructions-on-pushing-the-container-image-to-azure-container-registry).
 
 ## Deploy as an Azure IoT Edge module
 

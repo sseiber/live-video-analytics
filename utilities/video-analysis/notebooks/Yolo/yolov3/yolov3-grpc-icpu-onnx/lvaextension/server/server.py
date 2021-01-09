@@ -20,11 +20,13 @@ def Main():
 
         # Get port number
         grpcServerPort = ap.GetGrpcServerPort()
+        inferenceConfidence = ap.GetInferenceConfidence()
         logging.info('gRPC server port: {0}'.format(grpcServerPort))
+        logging.info('Inference confidence: {0}'.format(inferenceConfidence))
 
         # create gRPC server and start running
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=3))
-        extension_pb2_grpc.add_MediaGraphExtensionServicer_to_server(InferenceEngine(), server)
+        extension_pb2_grpc.add_MediaGraphExtensionServicer_to_server(InferenceEngine(inferenceConfidence), server)
         server.add_insecure_port(f'[::]:{grpcServerPort}')
         server.start()
         server.wait_for_termination()

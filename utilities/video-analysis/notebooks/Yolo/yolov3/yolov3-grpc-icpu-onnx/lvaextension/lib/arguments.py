@@ -30,12 +30,21 @@ class ArgumentParser:
                                     const=True, default=False,                        
                                     help='set to use shared memory')      
 
+            parser.add_argument('-c', nargs=1, metavar=('inference_confidence'),
+                                            help='Confidence.')
             parser.add_argument('--version', action='version', version='%(prog)s 1.0')
 
             self._arguments = parser.parse_args()
         except:
             PrintGetExceptionDetails()
             raise
+
+    # Inference confidence, if not provided then 0.75 is set as default
+    def GetInferenceConfidence(self):
+        if (self._arguments.c is not None):
+            return self._arguments.c[0]
+        else: 
+            return 0.75
 
     def GetGrpcServerPort(self):
         if (self._arguments.p is not None):

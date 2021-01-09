@@ -25,11 +25,8 @@ RUN apt-get update -y && \
 # Download the model
 RUN mkdir /app && \
     cd /app && \
-    wget https://github.com/onnx/models/raw/master/vision/object_detection_segmentation/yolov3/model/yolov3-10.tar.gz && \
-    tar -xzf yolov3-10.tar.gz && \
-    rm -rf yolov3-10.tar.gz && \
-    rm -rf test_data_set_0/* && \
-    mv yolov3/yolov3.onnx yolov3.onnx && \
+    wget -nv https://github.com/onnx/models/raw/master/vision/object_detection_segmentation/yolov3/model/yolov3-10.onnx && \
+    mv yolov3-10.onnx yolov3.onnx && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get clean && \
     apt-get purge -y --auto-remove wget
