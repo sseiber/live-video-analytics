@@ -5,11 +5,6 @@
         "description": "Event-based video recording to Assets based on motion events, and using HTTP Extension to send images to an external inference engine",
         "parameters": [
             {
-                "name": "rtspUrl",
-                "type": "String",
-                "description": "rtsp Url"
-            },
-            {
                 "name": "rtspAuthUsername",
                 "type": "String",
                 "description": "rtsp source user name.",
@@ -20,6 +15,11 @@
                 "type": "String",
                 "description": "rtsp source password.",
                 "default": "password"
+            },
+            {
+                "name": "rtspUrl",
+                "type": "String",
+                "description": "rtsp Url"
             },
             {
                 "name": "assetName",
@@ -46,6 +46,24 @@
                 "default": "password"
             },
             {
+                "name": "imageScaleMode",
+                "type": "String",
+                "description": "image scaling mode",
+                "default": "preserveAspectRatio"
+            },
+            {
+                "name": "frameWidth",
+                "type": "String",
+                "description": "Width of the video frame to be received from LVA.",
+                "default": "416"
+            },
+            {
+                "name": "frameHeight",
+                "type": "String",
+                "description": "Height of the video frame to be received from LVA.",
+                "default": "416"
+            },
+            {
                 "name": "hubSinkOutputName",
                 "type": "String",
                 "description": "hub sink output name",
@@ -56,6 +74,7 @@
             {
                 "@type": "#Microsoft.Media.MediaGraphRtspSource",
                 "name": "rtspSource",
+                "transport": "tcp",
                 "endpoint": {
                     "@type": "#Microsoft.Media.MediaGraphUnsecuredEndpoint",
                     "url": "${rtspUrl}",
@@ -82,17 +101,17 @@
                 },
                 "image": {
                     "scale": {
-                        "mode": "preserveAspectRatio",
-                        "width": "416",
-                        "height": "416"
+                        "mode": "${imageScaleMode}",
+                        "width": "${frameWidth}",
+                        "height": "${frameHeight}"
                     },
                     "format": {
                         "@type": "#Microsoft.Media.MediaGraphImageFormatBmp"
-                    },
-                    "samplingOptions": {
-                        "skipSamplesWithoutAnnotation": "false",
-                        "maximumSamplesPerSecond": "20"
                     }
+                },
+                "samplingOptions": {
+                    "skipSamplesWithoutAnnotation": "false",
+                    "maximumSamplesPerSecond": "20"
                 },
                 "inputs": [
                     {
