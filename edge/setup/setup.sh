@@ -169,7 +169,7 @@ IOTHUB=$(echo "${RESOURCES}" | awk '$2 ~ /Microsoft.Devices\/IotHubs$/ {print $1
 AMS_ACCOUNT=$(echo "${RESOURCES}" | awk '$2 ~ /Microsoft.Media\/mediaservices$/ {print $1}')
 VNET=$(echo "${RESOURCES}" | awk '$2 ~ /Microsoft.Network\/virtualNetworks$/ {print $1}')
 EDGE_DEVICE="lva-sample-device"
-IOTHUB_CONNECTION_STRING=$(az iot hub show-connection-string --hub-name ${IOTHUB} --query='connectionString')
+IOTHUB_CONNECTION_STRING=$(az iot hub connection-string show --hub-name ${IOTHUB} --query='connectionString')
 CONTAINER_REGISTRY=$(echo "${RESOURCES}" | awk '$2 ~ /Microsoft.ContainerRegistry\/registries$/ {print $1}')
 CONTAINER_REGISTRY_USERNAME=$(az acr credential show -n $CONTAINER_REGISTRY --query 'username' | tr -d \")
 CONTAINER_REGISTRY_PASSWORD=$(az acr credential show -n $CONTAINER_REGISTRY --query 'passwords[0].value' | tr -d \")
@@ -187,7 +187,7 @@ if test -z "$(az iot hub device-identity list -n $IOTHUB | grep "deviceId" | gre
     az iot hub device-identity create --hub-name $IOTHUB --device-id $EDGE_DEVICE --edge-enabled -o none
     checkForError
 fi
-DEVICE_CONNECTION_STRING=$(az iot hub device-identity show-connection-string --device-id $EDGE_DEVICE --hub-name $IOTHUB --query='connectionString')
+DEVICE_CONNECTION_STRING=$(az iot hub device-identity connection-string show --device-id $EDGE_DEVICE --hub-name $IOTHUB --query='connectionString')
 
 # creating the AMS account creates a service principal, so we'll just reset it to get the credentials
 echo "setting up service principal..."
@@ -213,25 +213,25 @@ re="SubscriptionId:\s([0-9a-z\-]*)"
 SUBSCRIPTION_ID=$([[ "$AMS_CONNECTION" =~ $re ]] && echo ${BASH_REMATCH[1]})
 
 # create new role definition in the subscription
- if test -z "$(az role definition list -n "$ROLE_DEFINITION_NAME" | grep "roleName")"; then
-    echo -e "Creating a custom role named ${BLUE}$ROLE_DEFINITION_NAME${NC}."
-    curl -sL $ROLE_DEFINITION_URL > $ROLE_DEFINITION_FILE
-    sed -i "s/\$SUBSCRIPTION_ID/$SUBSCRIPTION_ID/" $ROLE_DEFINITION_FILE
-    sed -i "s/\$ROLE_DEFINITION_NAME/$ROLE_DEFINITION_NAME/" $ROLE_DEFINITION_FILE
+# if test -z "$(az role definition list -n "$ROLE_DEFINITION_NAME" | grep "roleName")"; then
+#    echo -e "Creating a custom role named ${BLUE}$ROLE_DEFINITION_NAME${NC}."
+#    curl -sL $ROLE_DEFINITION_URL > $ROLE_DEFINITION_FILE
+#    sed -i "s/\$SUBSCRIPTION_ID/$SUBSCRIPTION_ID/" $ROLE_DEFINITION_FILE
+#    sed -i "s/\$ROLE_DEFINITION_NAME/$ROLE_DEFINITION_NAME/" $ROLE_DEFINITION_FILE
     
-    az role definition create --role-definition $ROLE_DEFINITION_FILE -o none
-    checkForError
- fi
+#    az role definition create --role-definition $ROLE_DEFINITION_FILE -o none
+#    checkForError
+# fi
 
 # capture object_id
 OBJECT_ID=$(az ad sp show --id ${AAD_SERVICE_PRINCIPAL_ID} --query 'objectId' | tr -d \")
 
 # create role assignment
- az role assignment create --role "$ROLE_DEFINITION_NAME" --assignee-object-id $OBJECT_ID -o none
- echo -e "The service principal with object id ${OBJECT_ID} is now linked with custom role ${BLUE}$ROLE_DEFINITION_NAME${NC}."
+# az role assignment create --role "$ROLE_DEFINITION_NAME" --assignee-object-id $OBJECT_ID -o none
+# echo -e "The service principal with object id ${OBJECT_ID} is now linked with custom role ${BLUE}$ROLE_DEFINITION_NAME${NC}."
 
 # The brand-new AMS account has a standard streaming endpoint in stopped state. 
-# A Premium streaming endpoint is recommended when recording multiple daysÃ¢â‚¬â„¢ worth of video
+# A Premium streaming endpoint is recommended when recording multiple days worth of video
 
 echo -e "
 Updating the Media Services account to use one ${YELLOW}Premium${NC} streaming endpoint."

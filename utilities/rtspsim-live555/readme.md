@@ -50,6 +50,53 @@ my-media-file refers to a media file in your local_media_folder.
 
 Note that only file formats supported by Live555 will work. Further, in order to use Live555 with Live Video Analytics, we recommend that you use an MKV, MPEG-TS, or MPG file with H.264 video (and, optionally, AAC audio).
 
+
+Another option is to run the container on Azure Container Instance while mounting the /media folder inte container to Azure Files Share
+
+```powershell
+#set script parameters
+resource_group=change_to_your_resource_group_name
+location=change_to_your_azure_region
+storage_account_name=change_to_your_account_name
+
+#create azure storage account
+az storage account create -n $storage_account_name -g $resource_group -l $location
+
+#get storage primary key
+storage_key=$(az storage account keys list -n $storage_account_name --query [0].value
+ -o tsv)
+
+#create file share
+az storage share create -n media --account-name $storage_account_name
+
+#create container instance mounted to your azure files share
+container_name=change_to_your_container_name
+az container create \
+    --resource-group $resource_group \
+    --name $container_name \
+    --image mcr.microsoft.com/lva-utilities/rtspsim-live555:1.2 \
+    --dns-name-label $container_name \
+    --ports 554 \
+    --azure-file-volume-account-name $storage_account_name \
+    --azure-file-volume-account-key $storage_key \
+    --azure-file-volume-share-name media \
+    --azure-file-volume-mount-path /live/mediaServer/media \
+    --query ipAddress.fqdn \
+    -o tsv
+
+```
+after running the last command you should see your container FQDN with the following format: "yourcontainerdns.yourregion.azurecontainer.io".
+
+upload some video files into the file share using Azure Storage Explorer / azcopy / Azure portal.
+
+open vlc player with the following uri: 
+
+rtsp://<container_fqdn>:554/media/<my-media-file>
+
+example:
+
+rtsp://yourcontainerdns.yourregion.azurecontainer.io:554/media/camera-300s.mkv
+
 ## Cleanup
 
 Once you are done, stop the docker container by executing the following commands
