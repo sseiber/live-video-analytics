@@ -5,7 +5,7 @@ import * as nconf from 'nconf';
 export class ConfigService {
     private config: nconf.Provider;
 
-    public async init() {
+    public async init(): Promise<void> {
         this.config = nconf.env().file(`./configs/${process.env.NODE_ENV}.json`);
     }
 

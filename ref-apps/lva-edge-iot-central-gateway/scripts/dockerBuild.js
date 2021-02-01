@@ -1,17 +1,23 @@
-// tslint:disable:no-console
 const childProcess = require('child_process');
 const os = require('os');
 const path = require('path');
 const fse = require('fs-extra');
+const { Command } = require('commander');
 
-const processArgs = require('commander')
+const programArgs = new Command()
     .option('-b, --docker-build', 'Docker build the image')
     .option('-p, --docker-push', 'Docker push the image')
     .option('-r, --workspace-root <workspaceRoot>', 'Workspace root folder path')
     .option('-v, --image-version <version>', 'Docker image version override')
     .parse(process.argv);
+const programOptions = programArgs.opts();
 
-const workspaceRootFolder = processArgs.workspaceRoot || process.cwd();
+const workspaceRootFolder = programOptions.workspaceRoot || process.cwd();
+
+function log(message) {
+    // eslint-disable-next-line no-console
+    console.log(message);
+}
 
 async function execDockerBuild(dockerArch, dockerImage) {
     const dockerArgs = [
@@ -41,33 +47,34 @@ async function start() {
     try {
         const imageConfigFilePath = path.resolve(workspaceRootFolder, `configs/imageConfig.json`);
         const imageConfig = fse.readJSONSync(imageConfigFilePath);
-        const dockerVersion = imageConfig.versionTag || process.env.npm_package_version || processArgs.imageVersion || 'latest';
+        const dockerVersion = imageConfig.versionTag || process.env.npm_package_version || programOptions.imageVersion || 'latest';
         const dockerArch = imageConfig.arch || '';
         const dockerImage = `${imageConfig.imageName}:${dockerVersion}-${dockerArch}`;
 
-        console.log(`Docker image: ${dockerImage}`);
-        console.log(`Platform: ${os.type()}`);
-    
-        if (processArgs.dockerBuild) {
+        log(`Docker image: ${dockerImage}`);
+
+        log(`Platform: ${os.type()}`);
+
+        if (programOptions.dockerBuild) {
             await execDockerBuild(dockerArch, dockerImage);
         }
 
-        if (processArgs.dockerPush) {
+        if (programOptions.dockerPush) {
             await execDockerPush(dockerImage);
         }
     } catch (e) {
         buildFailed = true;
     } finally {
         if (!buildFailed) {
-            console.log(`Operation complete`);
+            log(`Operation complete`);
         }
     }
 
     if (buildFailed) {
-        console.log(`Operation failed, see errors above`);
+        log(`Operation failed, see errors above`);
+
         process.exit(-1);
     }
 }
 
 start();
-// tslint:enable:no-console

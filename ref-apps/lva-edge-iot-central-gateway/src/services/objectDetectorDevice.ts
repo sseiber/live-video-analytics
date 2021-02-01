@@ -20,15 +20,15 @@ interface IObjectInference {
     type: string;
     entity: {
         box: {
-            l: number,
-            t: number,
-            w: number,
-            h: number
-        },
+            l: number;
+            t: number;
+            w: number;
+            h: number;
+        };
         tag: {
             confidence: number;
-            value: string
-        }
+            value: string;
+        };
     };
 }
 
@@ -165,7 +165,7 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
             const patchedProperties = {};
 
             for (const setting in desiredChangedSettings) {
-                if (!desiredChangedSettings.hasOwnProperty(setting)) {
+                if (!Object.prototype.hasOwnProperty.call(desiredChangedSettings, setting)) {
                     continue;
                 }
 
@@ -173,7 +173,9 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
                     continue;
                 }
 
-                const value = desiredChangedSettings[setting].hasOwnProperty('value') ? desiredChangedSettings[setting]?.value : desiredChangedSettings[setting];
+                const value = Object.prototype.hasOwnProperty.call(desiredChangedSettings[setting], 'value')
+                    ? desiredChangedSettings[setting]?.value
+                    : desiredChangedSettings[setting];
 
                 switch (setting) {
                     case ObjectDetectorInterface.Setting.DetectionClasses: {

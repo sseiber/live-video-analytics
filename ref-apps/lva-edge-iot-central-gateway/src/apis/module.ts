@@ -1,5 +1,5 @@
 import { inject, RoutePlugin, route } from 'spryly';
-import { Request, ResponseToolkit } from '@hapi/hapi';
+import { Request, ResponseObject, ResponseToolkit } from '@hapi/hapi';
 import { ICameraDeviceProvisionInfo, ModuleService } from '../services/module';
 import {
     badRequest as boom_badRequest,
@@ -19,7 +19,7 @@ export class ModuleRoutes extends RoutePlugin {
             description: 'Create a camera device'
         }
     })
-    public async postCreateCamera(request: Request, h: ResponseToolkit) {
+    public async postCreateCamera(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
         try {
             const cameraInfo: ICameraDeviceProvisionInfo = {
                 cameraId: request.params?.cameraId,
@@ -62,7 +62,7 @@ export class ModuleRoutes extends RoutePlugin {
             description: 'Delete a camera device'
         }
     })
-    public async deleteCamera(request: Request, h: ResponseToolkit) {
+    public async deleteCamera(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
         try {
             const cameraId = request.params?.cameraId;
             if (!cameraId) {
@@ -93,7 +93,7 @@ export class ModuleRoutes extends RoutePlugin {
             description: 'Send telemetry to a device device'
         }
     })
-    public async postSendCameraTelemetry(request: Request, h: ResponseToolkit) {
+    public async postSendCameraTelemetry(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
         try {
             const cameraId = request.params?.cameraId;
             const telemetry = (request.payload as any)?.telemetry;
@@ -126,7 +126,7 @@ export class ModuleRoutes extends RoutePlugin {
             description: 'Send inference telemetry to a camera device'
         }
     })
-    public async postSendCameraInferenceTelemetry(request: Request, h: ResponseToolkit) {
+    public async postSendCameraInferenceTelemetry(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
         try {
             const cameraId = request.params?.cameraId;
             const inferences = (request.payload as any)?.inferences;

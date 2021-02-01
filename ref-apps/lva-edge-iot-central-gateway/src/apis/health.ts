@@ -19,7 +19,7 @@ export class HealthRoutes extends RoutePlugin {
         }
     })
     // @ts-ignore (request)
-    public async getHealth(request: Request, h: ResponseToolkit) {
+    public async getHealth(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
         try {
             const healthState = await this.health.checkHealthState();
 

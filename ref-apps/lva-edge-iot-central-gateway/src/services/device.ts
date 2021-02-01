@@ -187,7 +187,7 @@ export abstract class AmsCameraDevice {
         [AiInferenceSettings.InferenceTimeout]: defaultInferenceTimeout
     };
     private inferenceInterval: NodeJS.Timeout;
-    private createVideoLinkForInferenceTimeout: boolean = false;
+    private createVideoLinkForInferenceTimeout = false;
 
     constructor(lvaGatewayModule: ModuleService, amsGraph: AmsGraph, cameraInfo: ICameraDeviceProvisionInfo) {
         this.lvaGatewayModule = lvaGatewayModule;
@@ -196,9 +196,9 @@ export abstract class AmsCameraDevice {
     }
 
     public abstract setGraphParameters(): any;
-    public abstract async deviceReady(): Promise<void>;
-    public abstract async processLvaInferences(inferenceData: any): Promise<void>;
-    public abstract async getCameraProps(): Promise<IoTDeviceInformation>;
+    public abstract deviceReady(): Promise<void>;
+    public abstract processLvaInferences(inferenceData: any): Promise<void>;
+    public abstract getCameraProps(): Promise<IoTDeviceInformation>;
 
     public async connectDeviceClient(dpsHubConnectionString: string): Promise<IClientConnectResult> {
         let clientConnectionResult: IClientConnectResult = {
@@ -344,9 +344,9 @@ export abstract class AmsCameraDevice {
         }
     }
 
-    protected abstract async onHandleDeviceProperties(desiredChangedSettings: any);
+    protected abstract onHandleDeviceProperties(desiredChangedSettings: any): Promise<void>;
 
-    protected async onHandleDevicePropertiesInternal(desiredChangedSettings: any) {
+    protected async onHandleDevicePropertiesInternal(desiredChangedSettings: any): Promise<void> {
         try {
             this.lvaGatewayModule.logger(['ModuleService', 'info'], `onHandleDeviceProperties`);
             if (this.lvaEdgeDiagnosticsSettings[LvaEdgeDiagnosticsSettings.DebugTelemetry] === true) {
@@ -356,7 +356,7 @@ export abstract class AmsCameraDevice {
             const patchedProperties = {};
 
             for (const setting in desiredChangedSettings) {
-                if (!desiredChangedSettings.hasOwnProperty(setting)) {
+                if (!Object.prototype.hasOwnProperty.call(desiredChangedSettings, setting)) {
                     continue;
                 }
 
@@ -364,7 +364,9 @@ export abstract class AmsCameraDevice {
                     continue;
                 }
 
-                const value = desiredChangedSettings[setting].hasOwnProperty('value') ? desiredChangedSettings[setting]?.value : desiredChangedSettings[setting];
+                const value = Object.prototype.hasOwnProperty.call(desiredChangedSettings[setting], 'value')
+                    ? desiredChangedSettings[setting].value
+                    : desiredChangedSettings[setting];
 
                 switch (setting) {
                     case IoTCameraInterface.Setting.VideoPlaybackHost:
@@ -413,7 +415,7 @@ export abstract class AmsCameraDevice {
                         return reject(error);
                     }
 
-                    return resolve();
+                    return resolve('');
                 });
             });
 
@@ -608,11 +610,8 @@ export abstract class AmsCameraDevice {
             const responseMessage = `LVA Edge start graph request: ${startLvaGraphResult ? 'succeeded' : 'failed'}`;
             this.lvaGatewayModule.logger([this.cameraInfo.cameraId, 'info'], responseMessage);
 
-            await commandResponse.send(202);
-            await this.updateDeviceProperties({
-                [LvaEdgeOperationsInterface.Command.StartLvaProcessing]: {
-                    value: responseMessage
-                }
+            await commandResponse.send(200, {
+                message: responseMessage
             });
 
             if (startLvaGraphResult) {
@@ -652,12 +651,8 @@ export abstract class AmsCameraDevice {
             const responseMessage = `LVA Edge stop graph request: ${stopLvaGraphResult ? 'succeeded' : 'failed'}`;
             this.lvaGatewayModule.logger([this.cameraInfo.cameraId, 'info'], responseMessage);
 
-            await commandResponse.send(202);
-            await this.updateDeviceProperties({
-                [LvaEdgeOperationsInterface.Command.StopLvaProcessing]: {
-                    value: responseMessage
-                },
-                [AiInferenceInterface.Property.InferenceImageUrl]: this.lvaGatewayModule.getSampleImageUrls().ANALYZE
+            await commandResponse.send(200, {
+                message: responseMessage
             });
         }
         catch (ex) {

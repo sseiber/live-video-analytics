@@ -33,6 +33,12 @@ import { bind, defer, emptyObj, forget, sleep } from '../utils';
 
 type DeviceOperation = 'DELETE_CAMERA' | 'SEND_EVENT' | 'SEND_INFERENCES';
 
+export interface IInvokeMethodResponse {
+    result: boolean;
+    statusCode: number;
+    message: string;
+}
+
 export interface ICameraDeviceProvisionInfo {
     cameraId: string;
     cameraName: string;
@@ -187,8 +193,8 @@ const LvaGatewayCommands = {
     SendDeviceInferences: 'senddeviceinferences'
 };
 
-const defaultDpsProvisioningHost: string = 'global.azure-devices-provisioning.net';
-const defaultHealthCheckRetries: number = 3;
+const defaultDpsProvisioningHost = 'global.azure-devices-provisioning.net';
+const defaultHealthCheckRetries = 3;
 
 export interface ISampleImageUrls {
     ANALYZE: string;
@@ -212,8 +218,8 @@ export class ModuleService {
     @inject('storage')
     private storage: StorageService;
 
-    private iotcGatewayInstanceId: string = '';
-    private iotcGatewayModuleId: string = '';
+    private iotcGatewayInstanceId = '';
+    private iotcGatewayModuleId = '';
     private moduleDeploymentProperties: IModuleDeploymentProperties = {
         lvaEdgeModuleId: '',
         amsAccountName: ''
@@ -229,7 +235,7 @@ export class ModuleService {
     private moduleTwin: Twin = null;
     private deferredStart = defer();
     private healthState = HealthState.Good;
-    private healthCheckFailStreak: number = 0;
+    private healthCheckFailStreak = 0;
     private moduleSettings: ILvaGatewaySettings = {
         [LvaGatewaySettings.DebugTelemetry]: false,
         [LvaGatewaySettings.DebugRoutedMessage]: false
@@ -308,12 +314,12 @@ export class ModuleService {
     }
 
     @bind
-    public logger(tags: any, message: any) {
+    public logger(tags: any, message: any): void {
         this.server.log(tags, message);
     }
 
     @bind
-    public async invokeLvaModuleMethod(methodName: string, payload: any): Promise<any> {
+    public async invokeLvaModuleMethod(methodName: string, payload: any): Promise<IInvokeMethodResponse> {
         const methodParams = {
             methodName,
             payload,
@@ -331,14 +337,16 @@ export class ModuleService {
             this.server.log(['ModuleService', 'error'], `invokeLvaModuleMethod error: ${response.payload.error?.message}`);
 
             return {
-                status: response.status,
-                code: response.payload.error.code || 'UnknownError'
+                result: false,
+                statusCode: response.status,
+                message: response.payload.error.code || 'UnknownError'
             };
         }
 
         return {
-            status: response.status,
-            code: 'Success'
+            result: true,
+            statusCode: response.status,
+            message: 'Success'
         };
     }
 
@@ -425,7 +433,7 @@ export class ModuleService {
         }
     }
 
-    public async sendInferenceData(inferenceTelemetryData: any) {
+    public async sendInferenceData(inferenceTelemetryData: any): Promise<void> {
         if (!inferenceTelemetryData || !this.moduleClient) {
             return;
         }
@@ -451,7 +459,7 @@ export class ModuleService {
             if (timeout > 0) {
                 await new Promise((resolve) => {
                     setTimeout(() => {
-                        return resolve();
+                        return resolve('');
                     }, 1000 * timeout);
                 });
             }
@@ -1015,7 +1023,7 @@ export class ModuleService {
                         return reject(error);
                     }
 
-                    return resolve();
+                    return resolve('');
                 });
             });
 
@@ -1039,7 +1047,7 @@ export class ModuleService {
             const patchedProperties = {};
 
             for (const setting in desiredChangedSettings) {
-                if (!desiredChangedSettings.hasOwnProperty(setting)) {
+                if (!Object.prototype.hasOwnProperty.call(desiredChangedSettings, setting)) {
                     continue;
                 }
 
@@ -1086,11 +1094,8 @@ export class ModuleService {
             const detectionType = commandRequest?.payload?.[AddCameraCommandRequestParams.DetectionType];
 
             if (!cameraId || !cameraName || !rtspUrl || !rtspAuthUsername || !rtspAuthPassword || !detectionType) {
-                await commandResponse.send(202);
-                await this.updateModuleProperties({
-                    [LvaGatewayInterface.Command.AddCamera]: {
-                        value: `The ${LvaGatewayInterface.Command.AddCamera} command is missing required parameters, cameraId, cameraName, rtspUrl, rtspAuthUsername, rtspAuthPassword, detectionType`
-                    }
+                await commandResponse.send(200, {
+                    message: `The ${LvaGatewayInterface.Command.AddCamera} command is missing required parameters, cameraId, cameraName, rtspUrl, rtspAuthUsername, rtspAuthPassword, detectionType`
                 });
 
                 return;
@@ -1105,11 +1110,8 @@ export class ModuleService {
                 detectionType
             });
 
-            await commandResponse.send(202);
-            await this.updateModuleProperties({
-                [LvaGatewayInterface.Command.AddCamera]: {
-                    value: provisionResult.clientConnectionMessage
-                }
+            await commandResponse.send(200, {
+                message: provisionResult.clientConnectionMessage
             });
         }
         catch (ex) {
@@ -1124,11 +1126,8 @@ export class ModuleService {
         try {
             const cameraId = commandRequest?.payload?.[DeleteCameraCommandRequestParams.CameraId];
             if (!cameraId) {
-                await commandResponse.send(202);
-                await this.updateModuleProperties({
-                    [LvaGatewayInterface.Command.DeleteCamera]: {
-                        value: `The ${LvaGatewayInterface.Command.DeleteCamera} command requires a Camera Id parameter`
-                    }
+                await commandResponse.send(200, {
+                    message: `The ${LvaGatewayInterface.Command.DeleteCamera} command requires a Camera Id parameter`
                 });
 
                 return;
@@ -1136,14 +1135,12 @@ export class ModuleService {
 
             const deleteResult = await this.deprovisionAmsInferenceDevice(cameraId);
 
-            await commandResponse.send(202);
-            await this.updateModuleProperties({
-                [LvaGatewayInterface.Command.DeleteCamera]: {
-                    value: deleteResult
-                        ? `The ${LvaGatewayInterface.Command.DeleteCamera} command succeeded`
-                        : `An error occurred while executing the ${LvaGatewayInterface.Command.DeleteCamera} command`
+            const responseMessage = deleteResult
+                ? `The ${LvaGatewayInterface.Command.DeleteCamera} command succeeded`
+                : `An error occurred while executing the ${LvaGatewayInterface.Command.DeleteCamera} command`;
 
-                }
+            await commandResponse.send(200, {
+                message: responseMessage
             });
         }
         catch (ex) {
@@ -1157,11 +1154,8 @@ export class ModuleService {
 
         try {
             // sending response before processing, since this is a restart request
-            await commandResponse.send(200);
-            await this.updateModuleProperties({
-                [LvaGatewayInterface.Command.RestartModule]: {
-                    value: 'Received command to restart the module'
-                }
+            await commandResponse.send(200, {
+                message: 'Received command to restart the module'
             });
 
             await this.restartModule(commandRequest?.payload?.[RestartModuleCommandRequestParams.Timeout] || 0, 'RestartModule command received');
@@ -1178,10 +1172,7 @@ export class ModuleService {
             if (iotcApiResponse.res.statusCode < 200 || iotcApiResponse.res.statusCode > 299) {
                 this.server.log(['ModuleService', 'error'], `Response status code = ${iotcApiResponse.res.statusCode}`);
 
-                throw ({
-                    message: (iotcApiResponse.payload as any)?.message || iotcApiResponse.payload || 'An error occurred',
-                    statusCode: iotcApiResponse.res.statusCode
-                });
+                throw new Error((iotcApiResponse.payload as any)?.message || iotcApiResponse.payload || 'An error occurred');
             }
 
             return iotcApiResponse;

@@ -4,7 +4,7 @@ import { resolve as pathResolve } from 'path';
 const DefaultPort = 9070;
 const PORT = process.env.PORT || process.env.port || process.env.PORT0 || process.env.port0 || DefaultPort;
 
-// @ts-ignore
+// @ts-ignore (config)
 export function manifest(config?: any): ComposeManifest {
     return {
         server: {

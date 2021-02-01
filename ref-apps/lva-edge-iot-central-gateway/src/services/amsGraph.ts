@@ -86,23 +86,23 @@ export class AmsGraph {
         };
     }
 
-    public getInstance() {
+    public getInstance(): any {
         return this.instance;
     }
 
-    public getTopology() {
+    public getTopology(): any {
         return this.topology;
     }
 
-    public getInstanceName() {
+    public getInstanceName(): string {
         return this.instanceName?.name || '';
     }
 
-    public getTopologyName() {
+    public getTopologyName(): string {
         return this.topologyName?.name || '';
     }
 
-    public setParam(paramName: string, value: any) {
+    public setParam(paramName: string, value: any): void {
         if (!paramName || value === undefined) {
             this.lvaGatewayModule.logger(['AmsGraph', 'error'], `setParam error - param: ${paramName}, value: ${value}`);
             return;
@@ -187,7 +187,7 @@ export class AmsGraph {
 
     private async setTopology(): Promise<boolean> {
         const response = await this.lvaGatewayModule.invokeLvaModuleMethod(`GraphTopologySet`, this.topology);
-        return (response.status || 500) > 299 ? false : true;
+        return response?.result;
     }
 
     // @ts-ignore
@@ -204,7 +204,7 @@ export class AmsGraph {
         this.setParam('rtspAuthPassword', this.rtspAuthPassword);
 
         for (const param in graphParameters) {
-            if (!graphParameters.hasOwnProperty(param)) {
+            if (!Object.prototype.hasOwnProperty.call(graphParameters, param)) {
                 continue;
             }
 
@@ -212,7 +212,7 @@ export class AmsGraph {
         }
 
         const response = await this.lvaGatewayModule.invokeLvaModuleMethod(`GraphInstanceSet`, this.instance);
-        return (response.status || 500) > 299 ? false : true;
+        return response?.result;
     }
 
     // @ts-ignore
@@ -222,7 +222,7 @@ export class AmsGraph {
 
     private async activateInstance(): Promise<boolean> {
         const response = await this.lvaGatewayModule.invokeLvaModuleMethod(`GraphInstanceActivate`, this.instanceName);
-        return (response.status || 500) > 299 ? false : true;
+        return response?.result;
     }
 
     private async deactivateInstance() {

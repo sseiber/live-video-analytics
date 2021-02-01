@@ -20,11 +20,11 @@ interface IMotionInference {
     type: string;
     motion: {
         box: {
-            l: number,
-            t: number,
-            w: number,
-            h: number
-        }
+            l: number;
+            t: number;
+            w: number;
+            h: number;
+        };
     };
 }
 
@@ -135,7 +135,7 @@ export class AmsMotionDetectorDevice extends AmsCameraDevice {
     }
 
     @bind
-    protected async onHandleDeviceProperties(desiredChangedSettings: any) {
+    protected async onHandleDeviceProperties(desiredChangedSettings: any): Promise<void> {
         await super.onHandleDevicePropertiesInternal(desiredChangedSettings);
 
         try {
@@ -146,7 +146,7 @@ export class AmsMotionDetectorDevice extends AmsCameraDevice {
             const patchedProperties = {};
 
             for (const setting in desiredChangedSettings) {
-                if (!desiredChangedSettings.hasOwnProperty(setting)) {
+                if (!Object.prototype.hasOwnProperty.call(desiredChangedSettings, setting)) {
                     continue;
                 }
 
@@ -154,7 +154,9 @@ export class AmsMotionDetectorDevice extends AmsCameraDevice {
                     continue;
                 }
 
-                const value = desiredChangedSettings[setting].hasOwnProperty('value') ? desiredChangedSettings[setting]?.value : desiredChangedSettings[setting];
+                const value = Object.prototype.hasOwnProperty.call(desiredChangedSettings[setting], 'value')
+                    ? desiredChangedSettings[setting]?.value
+                    : desiredChangedSettings[setting];
 
                 switch (setting) {
                     case MotionDetectorInterface.Setting.Sensitivity:

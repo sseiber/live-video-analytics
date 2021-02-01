@@ -25,7 +25,7 @@ export class HealthService {
     // private heathCheckStartTime = Date.now();
     // private failingStreak = 1;
 
-    public async init() {
+    public async init(): Promise<void> {
         this.server.log(['HealthService', 'info'], 'initialize');
     }
 
