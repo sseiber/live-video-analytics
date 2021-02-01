@@ -56,8 +56,7 @@ checkForError() {
 echo -e "
 Welcome! \U1F9D9\n
 This script will set up a number of prerequisite resources so 
-that you can run the ${BLUE}Live Video Analytics${NC} samples:
-https://github.com/Azure-Samples/live-video-analytics-edge
+that you can run the ${BLUE}Live Video Analytics${NC} samples.
 "
 sleep 2 # time for the reader 
 
