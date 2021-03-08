@@ -59,7 +59,7 @@
             "status": "running",
             "restartPolicy": "always",
             "settings": {
-              "image": "mcr.microsoft.com/media/live-video-analytics:1.0.3",
+              "image": "mcr.microsoft.com/media/live-video-analytics:2",
               "createOptions": {
                 "HostConfig": {
                   "LogConfig": {
@@ -69,7 +69,7 @@
                       "max-file": "10"
                     }
                   },
-                  "IpcMode" : "shareable"
+                  "IpcMode" : "host"
                 }
               }
             }
@@ -83,8 +83,10 @@
               "image": "mcr.microsoft.com/lva-utilities/rtspsim-live555:1.2",
               "createOptions": {
                 "HostConfig": {
-
-                }
+                  "Binds": [
+                      "$INPUT_VIDEO_FOLDER_ON_DEVICE:/live/mediaServer/media"
+                    ]
+                  }
               }
             }
           },
@@ -102,7 +104,9 @@
                 },
                 "Env":[
                   "MJPEG_OUTPUT=1",
-                  "GST_CONFIG_FILE=sample.txt"
+                  "GST_CONFIG_FILE=inference.txt",
+                  "GST_CLASSIFICATION_FILES=car_color.txt,car_type.txt",
+                  "GST_TRACKER_FILE=tracker.txt"
                 ],                
                 "HostConfig": {
                     "PortBindings": {
@@ -124,7 +128,7 @@
                           "max-file": "10"
                         }
                     },        
-                    "IpcMode": "container:lvaEdge",
+                    "IpcMode": "host",
                     "Runtime": "nvidia"
                 }
               }

@@ -107,7 +107,7 @@
         },
         "dataTransfer": {
           "mode": "sharedMemory",
-          "SharedMemorySizeMiB": "5"
+          "SharedMemorySizeMiB": "75"
         },
         "image": {
           "scale": {
@@ -122,7 +122,7 @@
         },
         "samplingOptions": {
           "skipSamplesWithoutAnnotation": "false",
-          "maximumSamplesPerSecond": "20"
+          "maximumSamplesPerSecond": "30"
           },
         "inputs": [
           {

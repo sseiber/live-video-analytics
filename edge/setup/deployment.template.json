@@ -37,7 +37,15 @@
             "restartPolicy": "always",
             "settings": {
               "image": "mcr.microsoft.com/media/live-video-analytics:2",
-              "createOptions" : "{\"HostConfig\":{\"LogConfig\":{\"Type\":\"\",\"Config\":{\"max-size\":\"10m\",\"max-file\":\"10\"}},\"Binds\":[\"$OUTPUT_VIDEO_FOLDER_ON_DEVICE:/var/media/\",\"$APPDATA_FOLDER_ON_DEVICE:/var/lib/azuremediaservices/\"]}}"
+              "createOptions" : "{\"HostConfig\":{\"LogConfig\":{\"Type\":\"\",\"Config\":{\"max-size\":\"10m\",\"max-file\":\"10\"}},\"Binds\":[\"$VIDEO_OUTPUT_FOLDER_ON_DEVICE:/var/media/\",\"$APPDATA_FOLDER_ON_DEVICE:/var/lib/azuremediaservices/\"]}}"
+            },
+            "env": {
+              "LOCAL_USER_ID": {
+                "value": "1010"
+              },
+              "LOCAL_GROUP_ID": {
+                "value": "1010"
+              }
             }
           },       
           "rtspsim": {
@@ -47,7 +55,7 @@
             "restartPolicy": "always",
             "settings": {
               "image": "mcr.microsoft.com/lva-utilities/rtspsim-live555:1.2",
-              "createOptions": "{\"HostConfig\":{\"Binds\":[\"$INPUT_VIDEO_FOLDER_ON_DEVICE:/live/mediaServer/media\"]}}"
+              "createOptions": "{\"HostConfig\":{\"Binds\":[\"$VIDEO_INPUT_FOLDER_ON_DEVICE:/live/mediaServer/media\"]}}"
               }
             }
           }

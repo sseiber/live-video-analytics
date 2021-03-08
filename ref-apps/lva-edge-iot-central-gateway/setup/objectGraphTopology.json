@@ -30,8 +30,7 @@
             {
                 "name": "inferencingUrl",
                 "type": "String",
-                "description": "inferencing Url",
-                "default": "http://lvaYolov3/score"
+                "description": "inferencing Url"
             },
             {
                 "name": "inferencingUserName",
@@ -111,7 +110,7 @@
                 },
                 "samplingOptions": {
                     "skipSamplesWithoutAnnotation": "false",
-                    "maximumSamplesPerSecond": "20"
+                    "maximumSamplesPerSecond": "5"
                 },
                 "inputs": [
                     {

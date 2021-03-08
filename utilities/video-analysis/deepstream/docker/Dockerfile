@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/deepstream:5.0-20.07-devel
+FROM nvcr.io/nvidia/deepstream:5.1-21.02-samples
 
 USER root
 
@@ -7,7 +7,7 @@ RUN mkdir /app
 COPY ./app/*.py /app/
 COPY ./app/grpc-autogen/*.py /app/
 COPY ./app/gst-lva-extension/*.* /app/
-COPY ./app/config/*.txt /app/
+COPY ./app/config/*.* /app/
 
 # Install gstreamer-1.0-dev
 RUN apt-get update -y && \
@@ -21,6 +21,8 @@ RUN mkdir -p /app/build && \
     cd /app/build && \
     cmake .. && \
     make
+
+RUN apt-get -y install python3-gst-1.0
 
 # Install required python packages 
 RUN pip3 install requests pyyaml protobuf grpcio && \

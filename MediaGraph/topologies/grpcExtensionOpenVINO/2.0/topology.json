@@ -1,0 +1,130 @@
+{
+	"@apiVersion":"2.0",
+	"name":"InferencingWithOpenVINOgRPC",
+	"properties":{
+		"description":"Analyzing live video using gRPCExtension to send video frames to the OpenVINO DL Streamer – Edge AI Extension module, from Intel",
+		"parameters":[
+			{
+				"name":"rtspUrl",
+				"type":"String",
+				"description":"Rtsp source Url address"
+			},
+			{
+				"name":"rtspUserName",
+				"type":"String",
+				"description":"Rtsp source user name.",
+				"default":"dummyUsername"
+			},
+			{
+				"name":"rtspPassword",
+				"type":"String",
+				"description":"Rtsp source password.",
+				"default":"dummyPassword"
+			},
+			{
+				"name":"grpcExtensionAddress",
+				"type":"String",
+				"description":"Address of the gRPC Server",
+				"default":"tcp://lvaExtension:5001"
+			},
+			{
+				"name":"grpcExtensionUserName",
+				"type":"String",
+				"description":"inferencing endpoint user name.",
+				"default":"dummyUserName"
+			},
+			{
+				"name":"grpcExtensionPassword",
+				"type":"String",
+				"description":"inferencing endpoint password.",
+				"default":"dummyPassword"
+			},
+			{
+				"name":"hubSinkOutputName",
+				"type":"String",
+				"description":"Hub sink output name",
+				"default":"iothubsinkoutput"
+			},
+			{
+				"name":"imageScaleMode",
+				"type":"String",
+				"description":"image scaling mode",
+				"default":"pad"
+			},
+			{
+				"name":"frameWidth",
+				"type":"String",
+				"description":"Width of the image frame to be sent to the gRPC Server.",
+				"default":"416"
+			},
+			{
+				"name":"frameHeight",
+				"type":"String",
+				"description":"Height of the image frame to be sent to the gRPC Server.",
+				"default":"416"
+			}
+		],
+		"sources":[
+			{
+				"@type":"#Microsoft.Media.MediaGraphRtspSource",
+				"name":"rtspSource",
+				"endpoint":{
+					"@type":"#Microsoft.Media.MediaGraphUnsecuredEndpoint",
+					"url":"${rtspUrl}",
+					"credentials":{
+						"@type":"#Microsoft.Media.MediaGraphUsernamePasswordCredentials",
+						"username":"${rtspUserName}",
+						"password":"${rtspPassword}"
+					}
+				}
+			}
+		],
+		"processors":[
+			{
+				"@type":"#Microsoft.Media.MediaGraphGrpcExtension",
+				"name":"grpcExtension",
+				"endpoint":{
+					"@type":"#Microsoft.Media.MediaGraphUnsecuredEndpoint",
+					"url":"${grpcExtensionAddress}",
+					"credentials":{
+						"@type":"#Microsoft.Media.MediaGraphUsernamePasswordCredentials",
+						"username":"${grpcExtensionUserName}",
+						"password":"${grpcExtensionPassword}"
+					}
+				},
+				"dataTransfer":{
+					"mode":"sharedMemory",
+					"SharedMemorySizeMiB":"5"
+				},
+				"image":{
+					"scale":{
+						"mode":"${imageScaleMode}",
+						"width":"${frameWidth}",
+						"height":"${frameHeight}"
+					},
+					"format":{
+						"@type":"#Microsoft.Media.MediaGraphImageFormatRaw",
+						"pixelFormat":"bgr24"
+					}
+				},
+				"inputs":[
+					{
+						"nodeName":"rtspSource"
+					}
+				]
+			}
+		],
+		"sinks":[
+			{
+				"@type":"#Microsoft.Media.MediaGraphIoTHubMessageSink",
+				"name":"hubSink",
+				"hubOutputName":"${hubSinkOutputName}",
+				"inputs":[
+					{
+						"nodeName":"grpcExtension"
+					}
+				]
+			}
+		]
+	}
+}

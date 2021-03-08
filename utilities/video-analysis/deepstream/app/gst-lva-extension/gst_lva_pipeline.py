@@ -24,6 +24,11 @@ import pyds
 import inferencing_pb2
 import media_pb2
 import extension_pb2
+import configparser
+import platform
+
+PGIE_CLASS_ID_VEHICLE_COLOR = 2
+PGIE_CLASS_ID_VEHICLE_TYPE = 3
 
 GObject.threads_init()
 Gst.init(None)
@@ -60,16 +65,64 @@ class Gst_Lva_Pipeline:
 	def __init__(self, msgQueue, graphName, width, height):
 		self.msgQueue = msgQueue
 		self.graphName = graphName
-
+		self.trackinEnabled = False
 		self.is_push_buffer_allowed = None
 		self._mainloop = GObject.MainLoop()
 
-		configFile = os.environ['GST_CONFIG_FILE']
+		# Set memory type depending platform (T4 or Jetson)
+		nv_memory_type = 1 if (platform.uname().machine == 'x86_64') else 4
+
+		configFile = os.environ.get('GST_CONFIG_FILE')
 		if (configFile is None):
-			configFile = "sample.txt"	
+			configFile = "inference.txt"	
 		
-		pipeline = "appsrc name=lvasource ! videoconvert ! nvvideoconvert nvbuf-memory-type=1 ! capsfilter caps=video/x-raw(memory:NVMM) ! m.sink_0 nvstreammux name=m batch-size=1 width={} height={} batched-push-timeout=33000 nvbuf-memory-type=1 ! nvinfer name=primary-inference config-file-path={} ! nvvideoconvert name=converter nvbuf-memory-type=1 ! videoconvert name=output-convert ! video/x-raw,format=RGB ! appsink name=lvasink".format(width, height, configFile)
-		self.MJPEGOutput = os.environ['MJPEG_OUTPUT']	
+		trackerFile = os.environ.get('GST_TRACKER_FILE')
+
+		classificationFile = os.environ.get('GST_CLASSIFICATION_FILES')
+		
+		pipelineHeader = "appsrc name=lvasource ! videoconvert ! nvvideoconvert nvbuf-memory-type={0} ! capsfilter caps=video/x-raw(memory:NVMM) ! m.sink_0 nvstreammux name=m batch-size=1 width={1} height={2} batched-push-timeout=33000 nvbuf-memory-type={0} ! nvinfer name=primary-inference config-file-path={3} ! ".format(nv_memory_type, width, height, configFile)
+		
+		pipelineTracker = ""
+		
+		if(trackerFile is not None):
+			#Set properties of tracker
+			self.trackinEnabled = True
+			config = configparser.ConfigParser()
+			config.read(trackerFile)
+			config.sections()
+
+			pipelineTracker = "nvtracker "
+			for key in config['tracker']:
+				if key == 'tracker-width':
+					pipelineTracker += 'tracker-width={} '.format(config.getint('tracker', key))
+				if key == 'tracker-height':
+					pipelineTracker += 'tracker-height={} '.format(config.getint('tracker', key))
+				if key == 'gpu-id':
+					pipelineTracker += 'gpu-id={} '.format(config.getint('tracker', key))
+				if key == 'll-lib-file':
+					pipelineTracker += 'll-lib-file={} '.format(config.get('tracker', key))
+				if key == 'll-config-file':
+					pipelineTracker += 'll-config-file={} '.format(config.get('tracker', key))
+				if key == 'enable-batch-process':
+					pipelineTracker += 'enable-batch-process={} '.format(config.getint('tracker', key))
+				if key == 'enable-past-frame':
+					pipelineTracker += 'enable-past-frame={} '.format(config.getint('tracker', key))
+				if key == 'useBufferedOutput':
+					pipelineTracker += 'useBufferedOutput={} '.format(config.getint('tracker', key))
+		
+			pipelineTracker += "!"
+		
+		pipelineClassifiers = ""
+		
+		if (classificationFile is not None):
+			for file in classificationFile.split(','):
+				pipelineClassifiers += " nvinfer config-file-path={} !".format(file)
+
+		pipelineFooter = " nvvideoconvert name=converter nvbuf-memory-type={} ! videoconvert ! video/x-raw,format=RGB ! appsink name=lvasink".format(nv_memory_type)
+		
+		pipeline = pipelineHeader + pipelineTracker + pipelineClassifiers + pipelineFooter
+
+		self.MJPEGOutput = os.environ.get('MJPEG_OUTPUT')
 
 		print('graphName = {}, width = {}, height = {}, configuration: {}'.format(graphName, width, height, configFile))
 		logging.info('Gst pipeline\n' + pipeline)
@@ -99,7 +152,9 @@ class Gst_Lva_Pipeline:
 		# # Note that pyds.gst_buffer_get_nvds_batch_meta() expects the
 		# # C address of gst_buffer as input, which is obtained with hash(gst_buffer)
 		batch_meta = pyds.gst_buffer_get_nvds_batch_meta(hash(buffer))
+
 		frame = batch_meta.frame_meta_list
+		
 		while frame is not None:
 			try:
 				# Note that frame.data needs a cast to pyds.NvDsFrameMeta
@@ -111,17 +166,6 @@ class Gst_Lva_Pipeline:
 				objInference = frame_meta.obj_meta_list
 				frameWidth = frame_meta.source_frame_width
 				frameHeight = frame_meta.source_frame_height
-
-				inference = msg.media_sample.inferences.add()	
-
-				attributes = []
-				obj_label = None
-				obj_confidence = 0
-				obj_left = 0
-				obj_width = 0
-				obj_top = 0
-				obj_width = 0	
-
 				# iterate through objects 
 				while objInference is not None:
 					try: 
@@ -129,54 +173,112 @@ class Gst_Lva_Pipeline:
 						obj_meta=pyds.NvDsObjectMeta.cast(objInference.data)
 					except StopIteration:
 						break
-					
+
+					inference = msg.media_sample.inferences.add()	
+
+					attributes = []
+					obj_label = None
+					obj_confidence = 0
+					obj_left = 0
+					obj_width = 0
+					obj_top = 0
+					obj_width = 0
+
+					color = ''
+					# Classification 
+					attribute = None
+					if(obj_meta.class_id == 0 and obj_meta.classifier_meta_list is not None):
+						classifier_meta = obj_meta.classifier_meta_list
+						while classifier_meta is not None:
+							classifierItem = pyds.NvDsClassifierMeta.cast(classifier_meta.data)
+							if(classifierItem is not None):
+								label_meta = classifierItem.label_info_list
+								while label_meta is not None:
+									labelItem = pyds.NvDsLabelInfo.cast(label_meta.data)
+									prob = round(labelItem.result_prob, 2)
+									attrValue = labelItem.result_label
+
+									attrName = 'unknown'
+									if(classifierItem.unique_component_id == PGIE_CLASS_ID_VEHICLE_COLOR):
+										attrName = 'color'
+									else:
+										attrName = 'type'
+
+									attributes.append([attrName, attrValue, prob])
+									
+									try: 
+										label_meta=label_meta.next
+									except StopIteration:
+										break
+
+							try: 
+								classifier_meta=classifier_meta.next
+							except StopIteration:
+								break
+							
 					rect_params=obj_meta.rect_params
 					top=int(rect_params.top)
 					left=int(rect_params.left)
 					width=int(rect_params.width)
 					height=int(rect_params.height)
 					obj_confidence = obj_meta.confidence
-					objLabel = obj_meta.obj_label
-					obj_label = objLabel
-
+					obj_label = obj_meta.obj_label
+					
 					obj_left = left / iw
 					obj_top = top / ih
 					obj_width = width/ iw
 					obj_height = height / ih
+					obj_id = None
+
+					# Tracking: Active tracking bbox information
+					if(self.trackinEnabled):
+						obj_id = obj_meta.object_id
+						obj_active_tracking = obj_meta.tracker_bbox_info
+						tracking_coord = obj_active_tracking.org_bbox_coords
+						if(tracking_coord is not None and tracking_coord.left > 0 and tracking_coord.width > 0 and tracking_coord.top > 0 and tracking_coord.height > 0):
+							obj_left = tracking_coord.left / iw
+							obj_top = tracking_coord.top / ih
+							obj_width = tracking_coord.width/ iw
+							obj_height = tracking_coord.height / ih
 
 					inference.type = inferencing_pb2.Inference.InferenceType.ENTITY
+
+					if obj_label is not None:
+						try:
+							entity = inferencing_pb2.Entity(
+													tag = inferencing_pb2.Tag(
+														value = obj_label,
+														confidence = obj_confidence
+													),
+													box = inferencing_pb2.Rectangle(
+														l = obj_left,
+														t = obj_top,
+														w = obj_width,
+														h = obj_height
+													)												
+												)
+
+							if(self.trackinEnabled and obj_id is not None):
+								entity.id = str(obj_id)
+
+							for attr in attributes:
+								attribute = inferencing_pb2.Attribute(
+									name = attr[0],
+									value = attr[1],
+									confidence = attr[2]
+								)
+
+								entity.attributes.append(attribute)
+						except:
+							PrintGetExceptionDetails()
+										
+						inference.entity.CopyFrom(entity)
+
 					try: 
 						objInference=objInference.next
 					except StopIteration:
 						break
 
-				if obj_label is not None:
-					try:
-						entity = inferencing_pb2.Entity(
-												tag = inferencing_pb2.Tag(
-													value = obj_label,
-													confidence = obj_confidence
-												),
-												box = inferencing_pb2.Rectangle(
-													l = obj_left,
-													t = obj_top,
-													w = obj_width,
-													h = obj_height
-												)												
-											)
-
-						for attr in attributes:
-							attribute = inferencing_pb2.Attribute(
-								name = attr[0],
-								value = attr[1],
-								confidence = attr[2]
-							)
-
-							entity.attributes.append(attribute)
-					except:
-						PrintGetExceptionDetails()
-									
-					inference.entity.CopyFrom(entity)
 			except StopIteration:
 				break
 
@@ -217,9 +319,10 @@ class Gst_Lva_Pipeline:
 				y1 = y1 * h
 				x2 = (x2 * w) + x1
 				y2 = (y2 * h) + y1
-				objClass = inference.entity.tag.value        
+				objClass = str(inference.entity.tag.value)
+
 				draw.rectangle((x1, y1, x2, y2), outline = 'blue', width = 1)				
-				draw.text((x1, y1-10), str(objClass), fill = "white", font = textfont)
+				draw.text((x1, y1-10), objClass, fill = "white", font = textfont)
 
 			imgBuf = io.BytesIO()
 			im.save(imgBuf, format='JPEG')
@@ -242,7 +345,7 @@ class Gst_Lva_Pipeline:
 			width = caps.get_structure(0).get_value('width')						
 			
 			gst_lva_message = get_message(buffer)
-
+			
 			msg = self.get_lva_MediaStreamMessage(buffer, gst_lva_message, height, width)
 
 			if msg is None:

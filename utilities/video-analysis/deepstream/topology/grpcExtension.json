@@ -31,7 +31,7 @@
         "name": "grpcExtensionAddress",
         "type": "String",
         "description": "grpc LVA Extension Address",
-        "default": "tcp://lvaextension:44000"
+        "default": "tcp://lvaExtension:5001"
       },
       {
         "name": "grpcExtensionUserName",
@@ -74,6 +74,12 @@
         "type": "String",
         "description": "Height of the video frame to be received from LVA.",
         "default": "416"
+      },
+      {
+        "name": "imageRawFormat",
+        "type": "String",
+        "description": "image format",
+        "default": "bgr24"
       }
     ],
     "sources": [
@@ -155,8 +161,8 @@
             "height": "${frameHeight}"
           },
           "format": {
-            "@type": "#Microsoft.Media.MediaGraphImageFormatJpeg",
-            "quality": "${imageQuality}"
+            "@type": "#Microsoft.Media.MediaGraphImageFormatRaw",
+            "pixelFormat": "${imageRawFormat}"
           }
         },
         "inputs": [
@@ -172,7 +178,7 @@
         "name": "assetSink",
         "assetNamePattern": "assetMD-${System.DateTime}",
         "segmentLength": "PT30S",
-        "localMediaCacheMaximumSizeMiB": "200",
+        "LocalMediaCacheMaximumSizeMiB": "200",
         "localMediaCachePath": "/var/lib/azuremediaservices/tmp/",
         "inputs": [
           {
