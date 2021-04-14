@@ -22,29 +22,25 @@ export interface IClientConnectResult {
     clientConnectionMessage: string;
 }
 
-export interface IoTDeviceInformation {
-    manufacturer: string;
-    model: string;
-    swVersion: string;
-    osName: string;
-    processorArchitecture: string;
-    processorManufacturer: string;
-    totalStorage: number;
-    totalMemory: number;
+export const OnvifCameraInformationInterface = {
+    Property: {
+        Manufacturer: 'rpManufacturer',
+        Model: 'rpModel',
+        FirmwareVersion: 'rpFirmwareVersion',
+        HardwareId: 'rpHardwareId',
+        SerialNumber: 'rpSerialNumber',
+        MediaProfile1: 'rpMediaProfile1',
+        MediaProfile2: 'rpMediaProfile2'
+    }
+};
+
+export enum OnvifCameraSettings {
+    OnvifMediaProfile = 'wpOnvifMediaProfile'
 }
 
-const defaultVideoPlaybackHost = 'http://localhost:8094';
-
-export enum IoTCameraSettings {
-    VideoPlaybackHost = 'wpVideoPlaybackHost'
+interface OnvifCameraSettingsInterface {
+    [OnvifCameraSettings.OnvifMediaProfile]: string;
 }
-
-interface IoTCameraSettingsInterface {
-    [IoTCameraSettings.VideoPlaybackHost]: string;
-}
-
-export const AmsDeviceTag = 'rpAmsDeviceTag';
-export const AmsDeviceTagValue = 'AmsInferenceDevice.v1';
 
 export enum IoTCentralClientState {
     Disconnected = 'disconnected',
@@ -56,7 +52,7 @@ export enum CameraState {
     Active = 'active'
 }
 
-export const IoTCameraInterface = {
+export const OnvifCameraInterface = {
     Telemetry: {
         SystemHeartbeat: 'tlSystemHeartbeat'
     },
@@ -66,13 +62,16 @@ export const IoTCameraInterface = {
     },
     Property: {
         CameraName: 'rpCameraName',
-        RtspUrl: 'rpRtspUrl',
-        RtspAuthUsername: 'rpRtspAuthUsername',
-        RtspAuthPassword: 'rpRtspAuthPassword',
-        AmsDeviceTag
+        IpAddress: 'rpIpAddress',
+        OnvifUsername: 'rpOnvifUsername',
+        OnvifPassword: 'rpOnvifPassword'
     },
     Setting: {
-        VideoPlaybackHost: IoTCameraSettings.VideoPlaybackHost
+        OnvifMediaProfile: OnvifCameraSettings.OnvifMediaProfile
+    },
+    Command: {
+        CaptureImage: 'cmCaptureImage',
+        RestartCamera: 'cmRestartCamera'
     }
 };
 
@@ -173,8 +172,8 @@ export abstract class AmsCameraDevice {
     protected healthState = HealthState.Good;
     protected lastInferenceTime: moment.Moment = moment.utc(0);
     protected videoInferenceStartTime: moment.Moment = moment.utc();
-    protected iotCameraSettings: IoTCameraSettingsInterface = {
-        [IoTCameraSettings.VideoPlaybackHost]: defaultVideoPlaybackHost
+    protected onvifCameraSettings: OnvifCameraSettingsInterface = {
+        [OnvifCameraSettings.OnvifMediaProfile]: 'None'
     };
     protected lvaEdgeOperationsSettings: LvaEdgeOperationsSettingsInterface = {
         [LvaEdgeOperationsSettings.AutoStart]: false,
@@ -198,7 +197,7 @@ export abstract class AmsCameraDevice {
     public abstract setGraphParameters(): any;
     public abstract deviceReady(): Promise<void>;
     public abstract processLvaInferences(inferenceData: any): Promise<void>;
-    public abstract getCameraProps(): Promise<IoTDeviceInformation>;
+    public abstract getCameraProps(): Promise<any>;
 
     public async connectDeviceClient(dpsHubConnectionString: string): Promise<IClientConnectResult> {
         let clientConnectionResult: IClientConnectResult = {
@@ -237,7 +236,7 @@ export abstract class AmsCameraDevice {
     @bind
     public async getHealth(): Promise<number> {
         await this.sendMeasurement({
-            [IoTCameraInterface.Telemetry.SystemHeartbeat]: this.healthState
+            [OnvifCameraInterface.Telemetry.SystemHeartbeat]: this.healthState
         });
 
         return this.healthState;
@@ -251,12 +250,16 @@ export abstract class AmsCameraDevice {
 
             await this.amsGraph.deleteLvaGraph();
 
-            const clientInterface = this.deviceClient;
+            this.deviceTwin?.removeAllListeners();
+            this.deviceClient.removeAllListeners();
+
+            await this.deviceClient.close();
+
             this.deviceClient = null;
-            await clientInterface.close();
+            this.deviceTwin = null;
 
             await this.sendMeasurement({
-                [IoTCameraInterface.State.CameraState]: CameraState.Inactive
+                [OnvifCameraInterface.State.CameraState]: CameraState.Inactive
             });
         }
         catch (ex) {
@@ -369,8 +372,8 @@ export abstract class AmsCameraDevice {
                     : desiredChangedSettings[setting];
 
                 switch (setting) {
-                    case IoTCameraInterface.Setting.VideoPlaybackHost:
-                        patchedProperties[setting] = (this.iotCameraSettings[setting] as any) = value || defaultVideoPlaybackHost;
+                    case OnvifCameraInterface.Setting.OnvifMediaProfile:
+                        patchedProperties[setting] = (this.onvifCameraSettings[setting] as any) = value || 'None';
                         break;
 
                     case LvaEdgeOperationsInterface.Setting.AutoStart:
@@ -476,7 +479,7 @@ export abstract class AmsCameraDevice {
         }
 
         await this.sendMeasurement({
-            [IoTCameraInterface.State.CameraState]: startLvaGraphResult === true ? CameraState.Active : CameraState.Inactive
+            [OnvifCameraInterface.State.CameraState]: startLvaGraphResult === true ? CameraState.Active : CameraState.Inactive
         });
 
         return startLvaGraphResult;
@@ -498,14 +501,15 @@ export abstract class AmsCameraDevice {
 
                     await this.sendMeasurement({
                         [AiInferenceInterface.Event.InferenceEventVideoUrl]: this.amsGraph.createInferenceVideoLink(
-                            this.iotCameraSettings[IoTCameraSettings.VideoPlaybackHost],
+                            this.onvifCameraSettings[OnvifCameraSettings.OnvifMediaProfile],
                             this.videoInferenceStartTime,
                             Math.trunc(videoInferenceDuration.asSeconds()))
                     });
 
-                    await this.updateDeviceProperties({
-                        [AiInferenceInterface.Property.InferenceImageUrl]: this.lvaGatewayModule.getSampleImageUrls().ANALYZE
-                    });
+                    // await this.updateDeviceProperties({
+                    //     // eslint-disable-next-line max-len
+                    //     [AiInferenceInterface.Property.InferenceImageUrl]: ''
+                    // });
                 }
 
                 this.videoInferenceStartTime = moment.utc();
@@ -518,7 +522,7 @@ export abstract class AmsCameraDevice {
 
                     await this.sendMeasurement({
                         [AiInferenceInterface.Event.InferenceEventVideoUrl]: this.amsGraph.createInferenceVideoLink(
-                            this.iotCameraSettings[IoTCameraSettings.VideoPlaybackHost],
+                            this.onvifCameraSettings[OnvifCameraSettings.OnvifMediaProfile],
                             this.videoInferenceStartTime,
                             Math.trunc(videoInferenceDuration.asSeconds()))
                     });
@@ -542,8 +546,13 @@ export abstract class AmsCameraDevice {
         };
 
         if (this.deviceClient) {
+            this.deviceTwin?.removeAllListeners();
+            this.deviceTwin.removeAllListeners();
+
             await this.deviceClient.close();
+
             this.deviceClient = null;
+            this.deviceTwin = null;
         }
 
         try {
@@ -644,7 +653,7 @@ export abstract class AmsCameraDevice {
             const stopLvaGraphResult = await this.amsGraph.stopLvaGraph();
             if (stopLvaGraphResult) {
                 await this.sendMeasurement({
-                    [IoTCameraInterface.State.CameraState]: CameraState.Inactive
+                    [OnvifCameraInterface.State.CameraState]: CameraState.Inactive
                 });
             }
 

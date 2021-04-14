@@ -5,8 +5,7 @@ import {
 import { AmsGraph } from './amsGraph';
 import {
     IoTDeviceInformation,
-    AmsDeviceTagValue,
-    IoTCameraInterface,
+    OnvifCameraInterface,
     IoTCentralClientState,
     CameraState,
     AiInferenceInterface,
@@ -80,20 +79,19 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
         this.lvaGatewayModule.logger([this.cameraInfo.cameraId, 'info'], `Device is ready`);
 
         await this.sendMeasurement({
-            [IoTCameraInterface.State.IoTCentralClientState]: IoTCentralClientState.Connected,
-            [IoTCameraInterface.State.CameraState]: CameraState.Inactive
+            [OnvifCameraInterface.State.IoTCentralClientState]: IoTCentralClientState.Connected,
+            [OnvifCameraInterface.State.CameraState]: CameraState.Inactive
         });
 
         const cameraProps = await this.getCameraProps();
 
         await this.updateDeviceProperties({
             ...cameraProps,
-            [IoTCameraInterface.Property.CameraName]: this.cameraInfo.cameraName,
-            [IoTCameraInterface.Property.RtspUrl]: this.cameraInfo.rtspUrl,
-            [IoTCameraInterface.Property.RtspAuthUsername]: this.cameraInfo.rtspAuthUsername,
-            [IoTCameraInterface.Property.RtspAuthPassword]: this.cameraInfo.rtspAuthPassword,
-            [IoTCameraInterface.Property.AmsDeviceTag]: `${this.lvaGatewayModule.getInstanceId()}:${AmsDeviceTagValue}`,
-            [AiInferenceInterface.Property.InferenceImageUrl]: this.lvaGatewayModule.getSampleImageUrls().ANALYZE
+            [OnvifCameraInterface.Property.CameraName]: this.cameraInfo.cameraName,
+            [OnvifCameraInterface.Property.IpAddress]: this.cameraInfo.ipAddress,
+            [OnvifCameraInterface.Property.OnvifUsername]: this.cameraInfo.onvifUsername,
+            [OnvifCameraInterface.Property.OnvifPassword]: this.cameraInfo.onvifPassword,
+            [AiInferenceInterface.Property.InferenceImageUrl]: ''
         });
     }
 
@@ -105,7 +103,7 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
 
         try {
             let detectionCount = 0;
-            let sampleImage = this.lvaGatewayModule.getSampleImageUrls().ANALYZE;
+            let sampleImageUrl = '';
 
             for (const inference of inferences) {
                 const detectedClass = (inference.entity?.tag?.value || '').toUpperCase();
@@ -113,7 +111,7 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
 
                 if (this.detectionClasses.includes(detectedClass) && confidence >= this.objectDetectorSettings[ObjectDetectorSettings.ConfidenceThreshold]) {
                     ++detectionCount;
-                    sampleImage = this.lvaGatewayModule.getSampleImageUrls()[detectedClass];
+                    sampleImageUrl = '';
 
                     await this.sendMeasurement({
                         [AiInferenceInterface.Telemetry.Inference]: inference
@@ -129,7 +127,7 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
                 });
 
                 await this.updateDeviceProperties({
-                    [AiInferenceInterface.Property.InferenceImageUrl]: sampleImage
+                    [AiInferenceInterface.Property.InferenceImageUrl]: sampleImageUrl
                 });
             }
         }

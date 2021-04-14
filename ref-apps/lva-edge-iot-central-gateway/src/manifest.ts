@@ -19,11 +19,11 @@ export function manifest(config?: any): ComposeManifest {
             './services'
         ],
         plugins: [
-            // ...[
-            //     {
-            //         plugin: './plugins'
-            //     }
-            // ],
+            ...[
+                {
+                    plugin: './plugins'
+                }
+            ],
             ...[
                 {
                     plugin: './apis'

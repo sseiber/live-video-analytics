@@ -7,8 +7,15 @@
                     "type": "docker",
                     "settings": {
                         "minDockerVersion": "v1.25",
-                        "loggingOptions": ""
+                        "loggingOptions": "",
+                        "registryCredentials": {
+                            "<CONTAINER_REGISTRY_NAME>": {
+                                "address": "<CONTAINER_REGISTRY_ADDRESS>",
+                                "password": "<CONTAINER_REGISTRY_PASSWORD>",
+                                "username": "<CONTAINER_REGISTRY_NAME>"
+                            }
                         }
+                    }
                 },
                 "systemModules": {
                     "edgeAgent": {
@@ -36,37 +43,26 @@
                         },
                         "type": "docker",
                         "env": {
+                            "onvifModuleId": {
+                                "value": "OnvifModule"
+                            },
                             "lvaEdgeModuleId": {
                                 "value": "lvaEdge"
                             },
                             "amsAccountName": {
                                 "value": "<YOUR_AZURE_MEDIA_ACCOUNT_NAME>"
-                            },
-                            "sampleImage_analyze": {
-                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/analyze_icon.jpg"
-                            },
-                            "sampleImage_bicycle": {
-                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/bike_icon.jpg"
-                            },
-                            "sampleImage_blank": {
-                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/blank_icon.jpg"
-                            },
-                            "sampleImage_bus": {
-                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/bus_icon.jpg"
-                            },
-                            "sampleImage_car": {
-                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/car_icon.jpg"
-                            },
-                            "sampleImage_motion": {
-                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/motion_icon.jpg"
-                            },
-                            "sampleImage_person": {
-                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/person_icon.jpg"
-                            },
-                            "sampleImage_truck": {
-                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/truck_icon.jpg"
                             }
                         },
+                        "status": "running",
+                        "restartPolicy": "always",
+                        "version": "1.0"
+                    },
+                    "OnvifModule": {
+                        "settings": {
+                            "image": "mcr.microsoft.com/cameraplatform/ipcamedgemodule",
+                            "createOptions": "{\"HostConfig\":{\"NetworkMode\":\"host\"},\"NetworkingConfig\":{\"EndpointsConfig\":{\"host\":{}}}}"
+                        },
+                        "type": "docker",
                         "status": "running",
                         "restartPolicy": "always",
                         "version": "1.0"

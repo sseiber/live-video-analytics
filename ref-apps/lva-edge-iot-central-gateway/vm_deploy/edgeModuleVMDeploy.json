@@ -100,7 +100,7 @@
         "iotah": "[parameters('iotCentralAppHost')]",
         "iotat": "[parameters('iotCentralAppApiToken')]",
         "iotpk": "[parameters('iotCentralDeviceProvisioningKey')]",
-        "model":  "[parameters('vmSize')]",
+        "model": "[parameters('vmSize')]",
         "networkSecurityGroupName": "[concat('nsg-', uniquestring(parameters('dnsLabelPrefix')))]"
     },
     "resources": [
