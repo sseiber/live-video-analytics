@@ -8,6 +8,7 @@ To complete the steps in this tutorial, you need:
 * [Node.js](https://nodejs.org/en/download/) v13 or later
 * [Visual Studio Code](https://code.visualstudio.com/Download) with [TSLint](https://marketplace.visualstudio.com/items?itemName=ms-vscode.vscode-typescript-tslint-plugin) extension installed
 * [Docker](https://www.docker.com/products/docker-desktop) engine
+  * This project relies on Docker buildx to build multi-architecture container images. Please see the [Github multi-arch/qemu-user-static](https://github.com/multiarch/qemu-user-static) project to install the qemu-user-static support.
 * An [Azure Container Registry](https://docs.microsoft.com/azure/container-registry/) to host your versions of the modules
 * An [Azure Media Services](https://docs.microsoft.com/azure/media-services/) account.
 
@@ -53,13 +54,20 @@ In order to bring up your own custom inference service, you need to include the 
         "versionTag": "latest"
     }
     ```
-3. Use the VS Code terminal to run the docker login command. Use the same credentials that you provided in the deployment manifest for the modules.
+
+1. Use the VS Code terminal to run the docker login command. Use the same credentials that you provided in the deployment manifest for the modules.
     ```
     docker login [your server].azurecr.io
     ```
 
-4. Use the VS Code terminal to run the commands to build the image and push it to your docker container registry. The build scripts deploy the image to your container registry. The output in the VS Code terminal window shows you if the build is successful.
+1. Use the VS Code terminal to run the commands to build the image and push it to your docker container registry. The build scripts deploy the image to your container registry. The output in the VS Code terminal window shows you if the build is successful.
     ```
     npm run dockerbuild
     npm run dockerpush
     ```
+
+1. An alternative approach is to perform a multi-architecture docker container build. This requires [Docker Buildx](https://docs.docker.com/buildx/working-with-buildx/). After reading the documentation and configuration a buildx instance you can use the following command to build an image for linux/amd64 and linux/arm64
+   ```
+   docker buildx build --platform linux/amd64,linux/arm64 --push -f ./docker/Dockerfile -t <YOUR_CONTAINER_REGISTRY>/<YOUR_IMAGE_NAME>:latest .
+   ```
+   Note: add the `--progress=plain` flag to the buildx command to see verbose output that can help diagnose build issues.
