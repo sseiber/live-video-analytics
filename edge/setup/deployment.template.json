@@ -38,14 +38,6 @@
             "settings": {
               "image": "mcr.microsoft.com/media/live-video-analytics:2",
               "createOptions" : "{\"HostConfig\":{\"LogConfig\":{\"Type\":\"\",\"Config\":{\"max-size\":\"10m\",\"max-file\":\"10\"}},\"Binds\":[\"$VIDEO_OUTPUT_FOLDER_ON_DEVICE:/var/media/\",\"$APPDATA_FOLDER_ON_DEVICE:/var/lib/azuremediaservices/\"]}}"
-            },
-            "env": {
-              "LOCAL_USER_ID": {
-                "value": "1010"
-              },
-              "LOCAL_GROUP_ID": {
-                "value": "1010"
-              }
             }
           },       
           "rtspsim": {

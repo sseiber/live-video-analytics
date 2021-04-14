@@ -23,7 +23,9 @@
             "type": "docker",
             "settings": {
               "image": "mcr.microsoft.com/azureiotedge-agent:1.0",
-              "createOptions": {}
+              "createOptions": {
+                
+              }
             }
           },
           "edgeHub": {
@@ -73,6 +75,10 @@
                       "max-file": "10"
                     }
                   },
+                  "Binds": [
+                    "$VIDEO_OUTPUT_FOLDER_ON_DEVICE:/var/media/",
+                    "$APPDATA_FOLDER_ON_DEVICE:/var/lib/azuremediaservices"
+                  ],
                   "IpcMode": "host"
                 }
               }
@@ -88,9 +94,21 @@
               "createOptions": {
                 "HostConfig": {
                   "Binds": [
-                    "$INPUT_VIDEO_FOLDER_ON_DEVICE:/live/mediaServer/media"
+                    "$VIDEO_INPUT_FOLDER_ON_DEVICE:/live/mediaServer/media"
                   ]
                 }
+              }
+            }
+          },
+          "objectsEventFilter": {
+            "version": "1.0",
+            "type": "docker",
+            "status": "running",
+            "restartPolicy": "always",
+            "settings": {
+              "image": "$CONTAINER_REGISTRY_USERNAME_myacr.azurecr.io/objectseventfilter",
+              "createOptions": {
+                
               }
             }
           },
@@ -100,19 +118,24 @@
             "status": "running",
             "restartPolicy": "always",
             "settings": {
-              "image": "$CONTAINER_REGISTRY_USERNAME_myacr.azurecr.io/<IMAGE_URI>",
+              "image": "intel/video-analytics-serving:0.4.1-dlstreamer-edge-ai-extension",
               "createOptions": {
                 "ExposedPorts": {
-                  "80/tcp": {},
-                  "5001/tcp": {}
+                  "80/tcp": {
+                    
+                  },
+                  "5001/tcp": {
+                    
+                  }
                 },
                 "Env": [
-                  "MJPEG_OUTPUT=1",
-                  "GST_CONFIG_FILE=inference.txt",
-                  "GST_CLASSIFICATION_FILES=car_color.txt,car_type.txt",
-                  "GST_TRACKER_FILE=tracker.txt"
+                  "PIPELINE_NAME=object_classification",
+                  "PIPELINE_VERSION=vehicle_attributes_recognition"
                 ],
                 "HostConfig": {
+                  "Binds": [
+                    "/tmp/:/tmp/"
+                  ],
                   "PortBindings": {
                     "80/tcp": [
                       {
@@ -132,8 +155,7 @@
                       "max-file": "10"
                     }
                   },
-                  "IpcMode": "host",
-                  "Runtime": "nvidia"
+                  "IpcMode": "host"
                 }
               }
             }
@@ -145,7 +167,11 @@
       "properties.desired": {
         "schemaVersion": "1.0",
         "routes": {
-          "LVAToHub": "FROM /messages/modules/lvaEdge/outputs/* INTO $upstream"
+          "ObjectsEventFilterToIoTHub": "FROM /messages/modules/objectsEventFilter/outputs/* INTO $upstream",
+          "LVAToObjectsEventFilter": "FROM /messages/modules/lvaEdge/outputs/detectedObjects INTO BrokeredEndpoint(\"/modules/objectsEventFilter/inputs/detectedObjects\")",
+          "LVADiagnosticsToIoTHub": "FROM /messages/modules/lvaEdge/outputs/AmsDiagnostics/* INTO $upstream",
+          "LVAOperationalToIoTHub": "FROM /messages/modules/lvaEdge/outputs/AmsOperational/* INTO $upstream",
+          "ObjectsEventFilterToLVA": "FROM /messages/modules/objectsEventFilter/outputs/objectsEventFilterTrigger INTO BrokeredEndpoint(\"/modules/lvaEdge/inputs/recordingTrigger\")"
         },
         "storeAndForwardConfiguration": {
           "timeToLiveSecs": 7200
@@ -168,6 +194,15 @@
         "logCategories": "Application,Events",
         "allowUnsecuredEndpoints": true,
         "telemetryOptOut": false
+      }
+    },
+    "objectsEventFilter": {
+      "properties.desired": {
+        "objectTypeValue": "van",
+        "objectTypeName": "type",
+        "objectTagValue": "white",
+        "objectTagName": "color",
+        "objectConfidence": 0.8
       }
     }
   }
