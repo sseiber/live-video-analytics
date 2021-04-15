@@ -31,7 +31,7 @@
                 "modules": {
                     "LvaEdgeGatewayModule": {
                         "settings": {
-                            "image": "mcr.microsoft.com/lva-utilities/lva-edge-iotc-gateway:1.0-arm64v8",
+                            "image": "mcr.microsoft.com/lva-utilities/lva-edge-iotc-gateway:1.0-amd64",
                             "createOptions": "{\"HostConfig\":{\"PortBindings\":{\"9070/tcp\":[{\"HostPort\":\"9070\"}]},\"Binds\":[\"/data/storage:/data/storage\",\"/data/media:/data/media/\"]}}"
                         },
                         "type": "docker",

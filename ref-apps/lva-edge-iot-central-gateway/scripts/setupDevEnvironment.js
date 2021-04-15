@@ -14,7 +14,7 @@ function log(message) {
     console.log(message);
 }
 
-function createDevConfiguration(srcFile, dstFolder, dstFile) {
+function createDevConfigurationFile(srcFile, dstFolder, dstFile) {
     if (!fse.pathExistsSync(dstFile)) {
         log(`Creating configuration: ${dstFile}`);
 
@@ -25,6 +25,20 @@ function createDevConfiguration(srcFile, dstFolder, dstFile) {
         }
         catch (ex) {
             log(ex.message);
+        }
+    }
+}
+
+function createDevConfigurationFolder(srcFolder, dstFolder) {
+    if (!fse.pathExistsSync(dstFolder)) {
+
+        // fse.ensureDirSync(dstFolder);
+
+        try {
+            fse.copySync(srcFolder, dstFolder);
+        }
+        catch (ex) {
+            const foo = ex.message;
         }
     }
 }
@@ -40,20 +54,13 @@ function start() {
             throw '';
         }
 
-        let configDirDst;
-        let configFileDst;
+        const setupDirSrc = path.resolve(workspaceRootFolder, `setup`);
+        const configDirDst = path.resolve(workspaceRootFolder, `configs`);
 
-        configDirDst = path.resolve(workspaceRootFolder, `configs`);
-        configFileDst = path.resolve(configDirDst, `imageConfig.json`);
-        createDevConfiguration(path.resolve(workspaceRootFolder, `setup`, `imageConfig.json`), configDirDst, configFileDst);
-
-        configDirDst = path.resolve(workspaceRootFolder, `configs`);
-        configFileDst = path.resolve(configDirDst, `local.json`);
-        createDevConfiguration(path.resolve(workspaceRootFolder, `setup`, `local.json`), configDirDst, configFileDst);
-
-        configDirDst = path.resolve(workspaceRootFolder, `storage`);
-        configFileDst = path.resolve(configDirDst, `state.json`);
-        createDevConfiguration(path.resolve(workspaceRootFolder, `setup`, `state.json`), configDirDst, configFileDst);
+        createDevConfigurationFile(path.resolve(setupDirSrc, `imageConfig.json`), configDirDst, path.resolve(configDirDst, `imageConfig.json`));
+        createDevConfigurationFile(path.resolve(setupDirSrc, `state.json`), configDirDst, path.resolve(configDirDst, `state.json`));
+        createDevConfigurationFolder(path.resolve(setupDirSrc, `mediaGraphs`), path.resolve(configDirDst, `mediaGraphs`));
+        createDevConfigurationFolder(path.resolve(setupDirSrc, `deploymentManifests`), path.resolve(configDirDst, `deploymentManifests`));
     } catch (e) {
         setupFailed = true;
     } finally {
