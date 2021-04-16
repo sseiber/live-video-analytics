@@ -16,7 +16,13 @@
         ],
         "lib": [
             "es2016"
-        ]
+        ],
+        "baseUrl": ".",
+        "paths": {
+            "@hapi/podium": [
+                "node_modules/@types/hapi__podium"
+            ]
+        }
     },
     "include": [
         "./src/**/*.ts"

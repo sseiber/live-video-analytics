@@ -1,8 +1,9 @@
-FROM amd64/node:13-slim
+FROM node:14-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/apk/*
 
 ENV DATADIR /data/content
 WORKDIR ${DATADIR}

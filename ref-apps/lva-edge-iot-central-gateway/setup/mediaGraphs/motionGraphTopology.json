@@ -62,7 +62,14 @@
                 "sensitivity": "${motionSensitivity}",
                 "inputs": [
                     {
-                        "nodeName": "rtspSource"
+                        "nodeName": "rtspSource",
+                        "outputSelectors": [
+                            {
+                                "property": "mediaType",
+                                "operator": "is",
+                                "value": "video"
+                            }
+                        ]
                     }
                 ]
             }
