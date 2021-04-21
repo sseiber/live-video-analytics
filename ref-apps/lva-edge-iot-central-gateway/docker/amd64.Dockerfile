@@ -7,10 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV DATADIR /data/content
 WORKDIR ${DATADIR}
 
-ADD ./configs/mediaGraphs/motionGraphInstance.json ${DATADIR}/motionGraphInstance.json
-ADD ./configs/mediaGraphs/motionGraphTopology.json ${DATADIR}/motionGraphTopology.json
-ADD ./configs/mediaGraphs/objectGraphInstance.json ${DATADIR}/objectGraphInstance.json
-ADD ./configs/mediaGraphs/objectGraphTopology.json ${DATADIR}/objectGraphTopology.json
+ADD ./configs/mediaPipelines/motionPipelineInstance.json ${DATADIR}/motionPipelineInstance.json
+ADD ./configs/mediaPipelines/motionPipelineTopology.json ${DATADIR}/motionPipelineTopology.json
+ADD ./configs/mediaPipelines/objectPipelineInstance.json ${DATADIR}/objectPipelineInstance.json
+ADD ./configs/mediaPipelines/objectPipelineTopology.json ${DATADIR}/objectPipelineTopology.json
 
 ENV WORKINGDIR /app
 WORKDIR ${WORKINGDIR}

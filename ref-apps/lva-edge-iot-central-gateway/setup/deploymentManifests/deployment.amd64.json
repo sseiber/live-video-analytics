@@ -38,7 +38,7 @@
                 "modules": {
                     "LvaEdgeGatewayModule": {
                         "settings": {
-                            "image": "mcr.microsoft.com/lva-utilities/lva-edge-iotc-gateway:1.0-amd64",
+                            "image": "iotccrscotts.azurecr.io/scotts/lva-edge-gateway:latest",
                             "createOptions": "{\"HostConfig\":{\"PortBindings\":{\"9070/tcp\":[{\"HostPort\":\"9070\"}]},\"Binds\":[\"/data/storage:/data/storage\",\"/data/media:/data/media/\"]}}"
                         },
                         "type": "docker",
@@ -50,12 +50,47 @@
                                 "value": "lvaEdge"
                             },
                             "amsAccountName": {
-                                "value": "<YOUR_AZURE_MEDIA_ACCOUNT_NAME>"
+                                "value": "lvaiotcgateway"
+                            },
+                            "sampleImage_analyze": {
+                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/analyze_icon.jpg"
+                            },
+                            "sampleImage_bicycle": {
+                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/bike_icon.jpg"
+                            },
+                            "sampleImage_blank": {
+                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/blank_icon.jpg"
+                            },
+                            "sampleImage_bus": {
+                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/bus_icon.jpg"
+                            },
+                            "sampleImage_car": {
+                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/car_icon.jpg"
+                            },
+                            "sampleImage_motion": {
+                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/motion_icon.jpg"
+                            },
+                            "sampleImage_person": {
+                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/person_icon.jpg"
+                            },
+                            "sampleImage_truck": {
+                                "value": "https://raw.githubusercontent.com/Azure/live-video-analytics/master/ref-apps/lva-edge-iot-central-gateway/setup/class_images/truck_icon.jpg"
                             }
                         },
                         "status": "running",
                         "restartPolicy": "always",
-                        "version": "1.0"
+                        "version": "1.0",
+                        "startupOrder": 4
+                    },
+                    "lvaYolov3": {
+                        "settings": {
+                            "image": "mcr.microsoft.com/lva-utilities/yolov3-onnx:1.0"
+                        },
+                        "type": "docker",
+                        "status": "running",
+                        "restartPolicy": "always",
+                        "version": "1.0",
+                        "startupOrder": 1
                     },
                     "OnvifModule": {
                         "settings": {
@@ -65,16 +100,8 @@
                         "type": "docker",
                         "status": "running",
                         "restartPolicy": "always",
-                        "version": "1.0"
-                    },
-                    "lvaYolov3": {
-                        "settings": {
-                            "image": "mcr.microsoft.com/lva-utilities/yolov3-onnx:1.0"
-                        },
-                        "type": "docker",
-                        "status": "running",
-                        "restartPolicy": "always",
-                        "version": "1.0"
+                        "version": "1.0",
+                        "startupOrder": 2
                     },
                     "lvaEdge": {
                         "settings": {
@@ -89,7 +116,8 @@
                         },
                         "status": "running",
                         "restartPolicy": "always",
-                        "version": "1.0"
+                        "version": "1.0",
+                        "startupOrder": 3
                     }
                 }
             }

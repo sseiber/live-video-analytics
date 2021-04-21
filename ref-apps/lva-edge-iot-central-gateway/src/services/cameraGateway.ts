@@ -1,19 +1,15 @@
 import { service, inject } from 'spryly';
 import { Server } from '@hapi/hapi';
-import { ConfigService } from './config';
 import { StorageService } from './storage';
 import { HealthState } from './health';
 import { AmsGraph } from './amsGraph';
-import { AmsCameraDevice } from './device';
+import { AmsCameraDevice, OnvifCameraInterface } from './device';
 import { AmsMotionDetectorDevice } from './motionDetectorDevice';
 import { AmsObjectDetectorDevice } from './objectDetectorDevice';
-import { Mqtt } from 'azure-iot-device-mqtt';
 import { SymmetricKeySecurityClient } from 'azure-iot-security-symmetric-key';
 import { ProvisioningDeviceClient } from 'azure-iot-provisioning-device';
 import { Mqtt as ProvisioningTransport } from 'azure-iot-provisioning-device-mqtt';
 import {
-    ModuleClient,
-    Twin,
     Message as IoTMessage,
     DeviceMethodRequest,
     DeviceMethodResponse
@@ -29,16 +25,37 @@ import {
 } from 'os';
 import * as crypto from 'crypto';
 import * as Wreck from '@hapi/wreck';
-import { bind, defer, emptyObj, forget } from '../utils';
+import { bind, emptyObj, forget } from '../utils';
 
-const moduleName = 'ModuleService';
+const moduleName = 'CameraGatewayService';
+const iotcOutput = 'iotc';
 
 type DeviceOperation = 'DELETE_CAMERA' | 'SEND_EVENT' | 'SEND_INFERENCES';
 
-export interface IInvokeMethodResponse {
-    result: boolean;
-    statusCode: number;
-    message: string;
+export interface IEnvConfig {
+    onvifModuleId: string;
+    lvaEdgeModuleId: string;
+    amsAccountName: string;
+}
+
+interface IAppConfig {
+    system: {
+        systemName: string;
+        systemId: string;
+    };
+    device: {
+        manufacturer: string;
+        model: string;
+        processorManufacturer: string;
+        totalStorage: number;
+    };
+    iotCentral: {
+        appHost: string;
+        apiToken: string;
+        deviceKey: string;
+        scopeId: string;
+    };
+    env: IEnvConfig;
 }
 
 export interface ICameraDeviceProvisionInfo {
@@ -69,18 +86,6 @@ interface IDeviceOperationResult {
     message: string;
 }
 
-interface IModuleDeploymentProperties {
-    lvaEdgeModuleId: string;
-    amsAccountName: string;
-}
-
-interface IIoTCentralAppKeys {
-    iotCentralAppHost: string;
-    iotCentralAppApiToken: string;
-    iotCentralDeviceProvisioningKey: string;
-    iotCentralScopeId: string;
-}
-
 interface ISystemProperties {
     cpuModel: string;
     cpuCores: number;
@@ -89,7 +94,7 @@ interface ISystemProperties {
     freeMemory: number;
 }
 
-enum LvaGatewayDeviceProperties {
+enum IotcEdgeHostProperties {
     Manufacturer = 'manufacturer',
     Model = 'model',
     SwVersion = 'swVersion',
@@ -134,16 +139,17 @@ enum AddCameraDetectionType {
     Object = 'object'
 }
 
-const LvaInferenceDeviceMap = {
-    [AddCameraDetectionType.Motion]: {
-        templateId: 'urn:AzureMediaServices:LvaEdgeMotionDetectorDevice:1',
-        deviceClass: AmsMotionDetectorDevice
-    },
+const LvaCameraDeviceTypeMap = {
     [AddCameraDetectionType.Object]: {
-        templateId: 'urn:AzureMediaServices:LvaEdgeObjectDetectorDevice:1',
+        templateId: 'dtmi:com:azuremedia:model:LvaEdgeObjectDetectorDevice;1',
         deviceClass: AmsObjectDetectorDevice
+    },
+    [AddCameraDetectionType.Motion]: {
+        templateId: 'dtmi:com:azuremedia:model:LvaEdgeMotionDetectorDevice;1',
+        deviceClass: AmsMotionDetectorDevice
     }
 };
+const LvaOperationsInterfaceId = 'dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:LvaEdgeOperations;1';
 
 enum RestartModuleCommandRequestParams {
     Timeout = 'RestartModuleRequestParams_Timeout'
@@ -204,18 +210,14 @@ const LvaGatewayCommands = {
 const defaultDpsProvisioningHost = 'global.azure-devices-provisioning.net';
 const defaultHealthCheckRetries = 3;
 
-@service('module')
-export class ModuleService {
+@service('cameraGateway')
+export class CameraGatewayService {
     @inject('$server')
     private server: Server;
-
-    @inject('config')
-    private config: ConfigService;
 
     @inject('storage')
     private storage: StorageService;
 
-    private onvifModuleId = '';
     private healthCheckRetries: number = defaultHealthCheckRetries;
     private healthState = HealthState.Good;
     private healthCheckFailStreak = 0;
@@ -223,444 +225,97 @@ export class ModuleService {
         [LvaGatewaySettings.DebugTelemetry]: false,
         [LvaGatewaySettings.DebugRoutedMessage]: false
     };
-    private iotCentralAppKeys: IIoTCentralAppKeys = {
-        iotCentralAppHost: '',
-        iotCentralAppApiToken: '',
-        iotCentralDeviceProvisioningKey: '',
-        iotCentralScopeId: ''
+    private appConfig: IAppConfig = {
+        system: {
+            systemName: 'IoT Central Edge Gateway',
+            systemId: '00000000-0000-0000-0000-000000000000'
+        },
+        device: {
+            manufacturer: '',
+            model: '',
+            processorManufacturer: '',
+            totalStorage: 0
+        },
+        iotCentral: {
+            appHost: '',
+            apiToken: '',
+            deviceKey: '',
+            scopeId: ''
+        },
+        env: {
+            onvifModuleId: '',
+            lvaEdgeModuleId: '',
+            amsAccountName: ''
+        }
     };
     private amsInferenceDeviceMap = new Map<string, AmsCameraDevice>();
     private dpsProvisioningHost: string = defaultDpsProvisioningHost;
 
-    private iotcGatewayInstanceId = '';
-    private iotcGatewayModuleId = '';
-    private moduleDeploymentProperties: IModuleDeploymentProperties = {
-        lvaEdgeModuleId: '',
-        amsAccountName: ''
-    };
-
-    private moduleClient: ModuleClient = null;
-    private moduleTwin: Twin = null;
-    private deferredStart = defer();
-
-    public getScopeId(): string {
-        return this.iotCentralAppKeys.iotCentralScopeId;
-    }
-
-    public getInstanceId(): string {
-        return this.iotcGatewayInstanceId;
-    }
-
     public async init(): Promise<void> {
         this.server.log([moduleName, 'info'], 'initialize');
-
-        this.server.method({ name: 'module.startModule', method: this.startModule });
-
-        this.iotcGatewayInstanceId = this.config.get('IOTEDGE_DEVICEID') || '';
-        this.iotcGatewayModuleId = this.config.get('IOTEDGE_MODULEID') || '';
-        this.moduleDeploymentProperties.lvaEdgeModuleId = this.config.get('lvaEdgeModuleId') || '';
-        this.moduleDeploymentProperties.amsAccountName = this.config.get('amsAccountName') || '';
-
-        this.dpsProvisioningHost = this.config.get('dpsProvisioningHost') || defaultDpsProvisioningHost;
-        this.healthCheckRetries = this.config.get('healthCheckRetries') || defaultHealthCheckRetries;
     }
 
     @bind
-    public async startModule(): Promise<void> {
-        let result = true;
+    public getAppConfig(): any {
+        return this.appConfig;
+    }
 
+    @bind
+    public debugTelemetry(): boolean {
+        return this.moduleSettings[LvaGatewaySettings.DebugTelemetry];
+    }
+
+    @bind
+    public async onHandleModuleProperties(desiredChangedSettings: any): Promise<void> {
         try {
-            result = await this.connectModuleClient();
-
-            if (result === true) {
-                await this.deferredStart.promise;
-
-                await this.moduleReady();
-
-                await this.recreateExistingDevices();
+            this.server.log([moduleName, 'info'], `onHandleModuleProperties`);
+            if (this.debugTelemetry()) {
+                this.server.log([moduleName, 'info'], `desiredChangedSettings:\n${JSON.stringify(desiredChangedSettings, null, 4)}`);
             }
-        }
-        catch (ex) {
-            result = false;
 
-            this.server.log([moduleName, 'error'], `Exception during IoT Central device provsioning: ${ex.message}`);
-        }
+            const patchedProperties = {};
 
-        this.healthState = result === true ? HealthState.Good : HealthState.Critical;
-    }
-
-    @bind
-    public logger(tags: any, message: any): void {
-        this.server.log(tags, message);
-    }
-
-    @bind
-    public async invokeLvaModuleMethod(methodName: string, payload: any): Promise<IInvokeMethodResponse> {
-        const methodParams = {
-            methodName,
-            payload,
-            connectTimeoutInSeconds: 30,
-            responseTimeoutInSeconds: 30
-        };
-
-        const response = await this.moduleClient.invokeMethod(this.iotcGatewayInstanceId, this.moduleDeploymentProperties.lvaEdgeModuleId, methodParams);
-        if (this.moduleSettings[LvaGatewaySettings.DebugTelemetry] === true) {
-            this.server.log([moduleName, 'info'], `invokeLvaModuleMethod response: ${JSON.stringify(response, null, 4)}`);
-        }
-
-        if (response.payload?.error) {
-            // throw new Error(`(from invokeMethod) ${response.payload.error?.message}`);
-            this.server.log([moduleName, 'error'], `invokeLvaModuleMethod error: ${response.payload.error?.message}`);
-
-            return {
-                result: false,
-                statusCode: response.status,
-                message: response.payload.error.code || 'UnknownError'
-            };
-        }
-
-        return {
-            result: true,
-            statusCode: response.status,
-            message: 'Success'
-        };
-    }
-
-    public async createCamera(cameraInfo: ICameraDeviceProvisionInfo): Promise<IProvisionResult> {
-        return this.createAmsInferenceDevice(cameraInfo);
-    }
-
-    public async deleteCamera(cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
-        return this.amsInferenceDeviceOperation('DELETE_CAMERA', cameraOperationInfo);
-    }
-
-    public async sendCameraTelemetry(cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
-        return this.amsInferenceDeviceOperation('SEND_EVENT', cameraOperationInfo);
-    }
-
-    public async sendCameraInferences(cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
-        return this.amsInferenceDeviceOperation('SEND_INFERENCES', cameraOperationInfo);
-    }
-
-    @bind
-    public async getHealth(): Promise<number> {
-        let healthState = this.healthState;
-
-        try {
-            if (healthState === HealthState.Good) {
-                const healthTelemetry = {};
-                const systemProperties = await this.getSystemProperties();
-                const freeMemory = systemProperties?.freeMemory || 0;
-
-                healthTelemetry[LvaGatewayInterface.Telemetry.FreeMemory] = freeMemory;
-                healthTelemetry[LvaGatewayInterface.Telemetry.ConnectedCameras] = this.amsInferenceDeviceMap.size;
-
-                // TODO:
-                // Find the right threshold for this metric
-                if (freeMemory === 0) {
-                    healthState = HealthState.Critical;
+            for (const setting in desiredChangedSettings) {
+                if (!Object.prototype.hasOwnProperty.call(desiredChangedSettings, setting)) {
+                    continue;
                 }
 
-                healthTelemetry[LvaGatewayInterface.Telemetry.SystemHeartbeat] = healthState;
-
-                await this.sendMeasurement(healthTelemetry);
-            }
-
-            this.healthState = healthState;
-
-            for (const device of this.amsInferenceDeviceMap) {
-                forget(device[1].getHealth);
-            }
-        }
-        catch (ex) {
-            this.server.log([moduleName, 'error'], `Error in healthState (may indicate a critical issue): ${ex.message}`);
-            this.healthState = HealthState.Critical;
-        }
-
-        if (this.healthState < HealthState.Good) {
-            this.server.log(['HealthService', 'warning'], `Health check warning: ${healthState}`);
-
-            if (++this.healthCheckFailStreak >= this.healthCheckRetries) {
-                this.server.log(['HealthService', 'warning'], `Health check too many warnings: ${healthState}`);
-
-                await this.restartModule(0, 'checkHealthState');
-            }
-        }
-
-        return this.healthState;
-    }
-
-    public async sendMeasurement(data: any): Promise<void> {
-        if (!data || !this.moduleClient) {
-            return;
-        }
-
-        try {
-            const iotcMessage = new IoTMessage(JSON.stringify(data));
-
-            await this.moduleClient.sendOutputEvent('iotc', iotcMessage);
-
-            if (this.moduleSettings[LvaGatewaySettings.DebugTelemetry] === true) {
-                this.server.log([moduleName, 'info'], `sendEvent: ${JSON.stringify(data, null, 4)}`);
-            }
-        }
-        catch (ex) {
-            this.server.log([moduleName, 'error'], `sendMeasurement: ${ex.message}`);
-        }
-    }
-
-    public async sendInferenceData(inferenceTelemetryData: any): Promise<void> {
-        if (!inferenceTelemetryData || !this.moduleClient) {
-            return;
-        }
-
-        try {
-            await this.sendMeasurement(inferenceTelemetryData);
-        }
-        catch (ex) {
-            this.server.log([moduleName, 'error'], `sendInferenceData: ${ex.message}`);
-        }
-    }
-
-    public async restartModule(timeout: number, reason: string): Promise<void> {
-        this.server.log([moduleName, 'info'], `Module restart requested...`);
-
-        try {
-            await this.sendMeasurement({
-                [LvaGatewayInterface.Event.ModuleRestart]: reason,
-                [LvaGatewayInterface.State.ModuleState]: ModuleState.Inactive,
-                [LvaGatewayInterface.Event.ModuleStopped]: 'Module restart'
-            });
-
-            if (timeout > 0) {
-                await new Promise((resolve) => {
-                    setTimeout(() => {
-                        return resolve('');
-                    }, 1000 * timeout);
-                });
-            }
-        }
-        catch (ex) {
-            this.server.log([moduleName, 'error'], `${ex.message}`);
-        }
-
-        // let Docker restart our container
-        this.server.log([moduleName, 'info'], `Shutting down main process - module container will restart`);
-        process.exit(1);
-    }
-
-    private async getSystemProperties(): Promise<ISystemProperties> {
-        const cpus = osCpus();
-        const cpuUsageSamples = osLoadAvg();
-
-        return {
-            cpuModel: cpus[0]?.model || 'Unknown',
-            cpuCores: cpus?.length || 0,
-            cpuUsage: cpuUsageSamples[0],
-            totalMemory: osTotalMem() / 1024,
-            freeMemory: osFreeMem() / 1024
-        };
-    }
-
-    private async getModuleProperties(): Promise<any> {
-        try {
-            const result = await this.storage.get('state', 'iotCentral');
-
-            return result.properties;
-        }
-        catch (ex) {
-            this.server.log([moduleName, 'error'], `Error reading module properties: ${ex.message}`);
-        }
-
-        return {};
-    }
-
-    private async getIoTCentralAppKeys(): Promise<any> {
-        try {
-            const result = await this.storage.get('state', 'iotCentral');
-
-            return result.appKeys;
-        }
-        catch (ex) {
-            this.server.log([moduleName, 'error'], `Error reading app keys: ${ex.message}`);
-        }
-
-        return {};
-    }
-
-    private async connectModuleClient(): Promise<boolean> {
-        let result = true;
-        let connectionStatus = `IoT Central successfully connected module: ${this.iotcGatewayModuleId}, instance id: ${this.iotcGatewayInstanceId}`;
-
-        if (this.moduleClient) {
-            this.moduleTwin?.removeAllListeners();
-            this.moduleClient.removeAllListeners();
-
-            await this.moduleClient.close();
-
-            this.moduleClient = null;
-            this.moduleTwin = null;
-        }
-
-        try {
-            this.server.log([moduleName, 'info'], `IOTEDGE_WORKLOADURI: ${this.config.get('IOTEDGE_WORKLOADURI')}`);
-            this.server.log([moduleName, 'info'], `IOTEDGE_DEVICEID: ${this.config.get('IOTEDGE_DEVICEID')}`);
-            this.server.log([moduleName, 'info'], `IOTEDGE_MODULEID: ${this.config.get('IOTEDGE_MODULEID')}`);
-            this.server.log([moduleName, 'info'], `IOTEDGE_MODULEGENERATIONID: ${this.config.get('IOTEDGE_MODULEGENERATIONID')}`);
-            this.server.log([moduleName, 'info'], `IOTEDGE_IOTHUBHOSTNAME: ${this.config.get('IOTEDGE_IOTHUBHOSTNAME')}`);
-            this.server.log([moduleName, 'info'], `IOTEDGE_AUTHSCHEME: ${this.config.get('IOTEDGE_AUTHSCHEME')}`);
-
-            this.moduleClient = await ModuleClient.fromEnvironment(Mqtt);
-        }
-        catch (ex) {
-            this.server.log([moduleName, 'error'], `Failed to instantiate client interface from configuraiton: ${ex.message}`);
-        }
-
-        if (!this.moduleClient) {
-            return false;
-        }
-
-        try {
-            await this.moduleClient.open();
-
-            this.server.log([moduleName, 'info'], `Client is connected`);
-
-            this.moduleTwin = await this.moduleClient.getTwin();
-            this.moduleTwin.on('properties.desired', this.onHandleModuleProperties);
-
-            this.moduleClient.on('error', this.onModuleClientError);
-
-            this.moduleClient.onMethod(LvaGatewayInterface.Command.AddCamera, this.addCameraDirectMethod);
-            this.moduleClient.onMethod(LvaGatewayInterface.Command.DeleteCamera, this.deleteCameraDirectMethod);
-            this.moduleClient.onMethod(LvaGatewayInterface.Command.RestartModule, this.restartModuleDirectMethod);
-            this.moduleClient.on('inputMessage', this.onHandleDownstreamMessages);
-        }
-        catch (ex) {
-            connectionStatus = `IoT Central connection error: ${ex.message}`;
-            this.server.log([moduleName, 'error'], connectionStatus);
-
-            result = false;
-        }
-
-        return result;
-    }
-
-    private async moduleReady(): Promise<void> {
-        this.server.log([moduleName, 'info'], `Module ready`);
-
-        const systemProperties = await this.getSystemProperties();
-        const moduleProperties = await this.getModuleProperties();
-        this.iotCentralAppKeys = await this.getIoTCentralAppKeys();
-
-        await this.updateModuleProperties({
-            ...moduleProperties,
-            [LvaGatewayDeviceProperties.OsName]: osPlatform() || '',
-            [LvaGatewayDeviceProperties.SwVersion]: osRelease() || '',
-            [LvaGatewayDeviceProperties.ProcessorArchitecture]: osArch() || '',
-            [LvaGatewayDeviceProperties.TotalMemory]: systemProperties.totalMemory
-        });
-
-        await this.sendMeasurement({
-            [LvaGatewayInterface.State.IoTCentralClientState]: IoTCentralClientState.Connected,
-            [LvaGatewayInterface.State.ModuleState]: ModuleState.Active,
-            [LvaGatewayInterface.Event.ModuleStarted]: 'Module initialization'
-        });
-    }
-
-    private async verifyLeafDeviceOwner(deviceId: string): Promise<any> {
-        try {
-            this.server.log([moduleName, 'info'], `Getting component interfaces on device: ${deviceId}`);
-
-            const devicePropertiesResponse = await this.iotcApiRequest(
-                `https://${this.iotCentralAppKeys.iotCentralAppHost}/api/preview/devices/${device.id}/properties`,
-                'get',
-                {
-                    headers: {
-                        Authorization: this.iotCentralAppKeys.iotCentralAppApiToken
-                    },
-                    json: true
-                });
-
-            this.server.log([moduleName, 'info'], `Found onvif camera device interface on device id: ${deviceId}`);
-
-            return devicePropertiesResponse;
-        }
-        catch (ex) {
-            this.server.log([moduleName, 'error'], `Could not find onvif camera device interface on device id: ${deviceId}`);
-        }
-
-        return;
-    }
-
-    private async recreateExistingDevices() {
-        this.server.log([moduleName, 'info'], 'recreateExistingDevices');
-
-        try {
-            const deviceListResponse = await this.iotcApiRequest(
-                `https://${this.iotCentralAppKeys.iotCentralAppHost}/api/preview/devices`,
-                'get',
-                {
-                    headers: {
-                        Authorization: this.iotCentralAppKeys.iotCentralAppApiToken
-                    },
-                    json: true
-                });
-
-            const deviceList = deviceListResponse.payload?.value || [];
-
-            this.server.log([moduleName, 'info'], `Found ${deviceList.length} devices`);
-            if (this.moduleSettings[LvaGatewaySettings.DebugTelemetry] === true) {
-                this.server.log([moduleName, 'info'], `${JSON.stringify(deviceList, null, 4)}`);
-            }
-
-            for (const device of deviceList) {
-                try {
-                    const devicePropertiesResponse = await this.verifyLeafDeviceOwner(device.id);
-
-                    // const detectionTypeComponent = devicePropertiesResponse[motionDetectorComponentId]
-                    //     ? motionDetectorComponentId
-
-                    // if (detectionTypeComponent) {
-                    //     const detectionType = detectionTypeComponent;
-
-                    //     this.server.log([moduleName, 'info'], `Recreating device: ${device.id} - detectionType: ${detectionType}`);
-
-                    //     await this.createAmsInferenceDevice({
-                    //         cameraId: device.id,
-                    //         cameraName: deviceInterfaceProperties.rpCameraName,
-                    //         ipAddress: deviceInterfaceProperties.rpRtspUrl,
-                    //         rtspAuthUsername: deviceInterfaceProperties.rpRtspAuthUsername,
-                    //         rtspAuthPassword: deviceInterfaceProperties.rpRtspAuthPassword,
-                    //         detectionType
-                    //     });
-                    // }
-                    // else {
-                    //     this.server.log([moduleName, 'info'], `Found device: ${device.id} - but it is not an LVA camera device`);
-                    // }
+                if (setting === '$version') {
+                    continue;
                 }
-                catch (ex) {
-                    this.server.log([moduleName, 'error'], `An error occurred while re-creating devices: ${ex.message}`);
+
+                const value = desiredChangedSettings[setting];
+
+                switch (setting) {
+                    case LvaGatewayInterface.Setting.DebugTelemetry:
+                    case LvaGatewayInterface.Setting.DebugRoutedMessage:
+                        patchedProperties[setting] = this.moduleSettings[setting] = value || false;
+                        break;
+
+                    default:
+                        this.server.log([moduleName, 'error'], `Received desired property change for unknown setting '${setting}'`);
+                        break;
                 }
             }
+
+            if (!emptyObj(patchedProperties)) {
+                await this.server.settings.app.iotCentralModule.updateModuleProperties(patchedProperties);
+            }
         }
         catch (ex) {
-            this.server.log([moduleName, 'error'], `Failed to get device list: ${ex.message}`);
+            this.server.log([moduleName, 'error'], `Exception while handling desired properties: ${ex.message}`);
         }
-
-        // If there were errors, we may be in a bad state (e.g. an ams inference device exists
-        // but we were not able to re-connect to it's client interface). Consider setting the health
-        // state to critical here to restart the gateway module.
     }
 
     @bind
-    private async onHandleDownstreamMessages(inputName: string, message: IoTMessage) {
-        if (!this.moduleClient || !message) {
-            return;
-        }
+    public onModuleClientError(error: Error): void {
+        this.server.log([moduleName, 'error'], `Module client connection error: ${error.message}`);
+        this.healthState = HealthState.Critical;
+    }
 
+    @bind
+    public async onHandleDownstreamMessages(inputName: string, message: IoTMessage): Promise<void> {
         try {
-            await this.moduleClient.complete(message);
-
             if (inputName === LvaGatewayEdgeInputs.LvaDiagnostics && this.moduleSettings[LvaGatewaySettings.DebugTelemetry] === false) {
                 return;
             }
@@ -690,9 +345,9 @@ export class ModuleService {
                             await this.createAmsInferenceDevice({
                                 cameraId: edgeInputCameraCommandData?.cameraId,
                                 cameraName: edgeInputCameraCommandData?.cameraName,
-                                rtspUrl: edgeInputCameraCommandData?.rtspUrl,
-                                rtspAuthUsername: edgeInputCameraCommandData?.rtspAuthPassword,
-                                rtspAuthPassword: edgeInputCameraCommandData?.rtspAuthUsername,
+                                ipAddress: edgeInputCameraCommandData?.ipAddress,
+                                onvifUsername: edgeInputCameraCommandData?.onvifUsername,
+                                onvifPassword: edgeInputCameraCommandData?.onvifPassword,
                                 detectionType: edgeInputCameraCommandData?.detectionType
                             });
                             break;
@@ -754,6 +409,243 @@ export class ModuleService {
         }
     }
 
+    @bind
+    public async onModuleReady(): Promise<void> {
+        this.server.log([moduleName, 'info'], `Module ready`);
+
+        this.dpsProvisioningHost = process.env.dpsProvisioningHost || defaultDpsProvisioningHost;
+        this.healthCheckRetries = Number(process.env.healthCheckRetries) || defaultHealthCheckRetries;
+        this.healthState = this.server.settings.app.iotCentralModule.getModuleClient() ? HealthState.Good : HealthState.Critical;
+
+        const systemProperties = await this.getSystemProperties();
+
+        const hostConfig = await this.getAppConfigFromHost();
+        this.appConfig = {
+            ...hostConfig,
+            env: {
+                onvifModuleId: process.env.onvifModuleId || '',
+                lvaEdgeModuleId: process.env.lvaEdgeModuleId || '',
+                amsAccountName: process.env.amsAccountName || ''
+            }
+        };
+
+        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayInterface.Command.AddCamera, this.addCameraDirectMethod);
+        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayInterface.Command.DeleteCamera, this.deleteCameraDirectMethod);
+        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayInterface.Command.RestartModule, this.restartModuleDirectMethod);
+
+        await this.server.settings.app.iotCentralModule.updateModuleProperties({
+            ...this.appConfig.device,
+            [IotcEdgeHostProperties.OsName]: osPlatform() || '',
+            [IotcEdgeHostProperties.SwVersion]: osRelease() || '',
+            [IotcEdgeHostProperties.ProcessorArchitecture]: osArch() || '',
+            [IotcEdgeHostProperties.TotalMemory]: systemProperties.totalMemory
+        });
+
+        await this.server.settings.app.iotCentralModule.sendMeasurement({
+            [LvaGatewayInterface.State.IoTCentralClientState]: IoTCentralClientState.Connected,
+            [LvaGatewayInterface.State.ModuleState]: ModuleState.Active,
+            [LvaGatewayInterface.Event.ModuleStarted]: 'Module initialization'
+        }, iotcOutput);
+
+        await this.recreateExistingDevices();
+    }
+
+    public async createCamera(cameraInfo: ICameraDeviceProvisionInfo): Promise<IProvisionResult> {
+        return this.createAmsInferenceDevice(cameraInfo);
+    }
+
+    public async deleteCamera(cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
+        return this.amsInferenceDeviceOperation('DELETE_CAMERA', cameraOperationInfo);
+    }
+
+    public async sendCameraTelemetry(cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
+        return this.amsInferenceDeviceOperation('SEND_EVENT', cameraOperationInfo);
+    }
+
+    public async sendCameraInferences(cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
+        return this.amsInferenceDeviceOperation('SEND_INFERENCES', cameraOperationInfo);
+    }
+
+    @bind
+    public async getHealth(): Promise<number> {
+        let healthState = this.healthState;
+
+        try {
+            if (healthState === HealthState.Good) {
+                const healthTelemetry = {};
+                const systemProperties = await this.getSystemProperties();
+                const freeMemory = systemProperties?.freeMemory || 0;
+
+                healthTelemetry[LvaGatewayInterface.Telemetry.FreeMemory] = freeMemory;
+                healthTelemetry[LvaGatewayInterface.Telemetry.ConnectedCameras] = this.amsInferenceDeviceMap.size;
+
+                // TODO:
+                // Find the right threshold for this metric
+                if (freeMemory === 0) {
+                    healthState = HealthState.Critical;
+                }
+
+                healthTelemetry[LvaGatewayInterface.Telemetry.SystemHeartbeat] = healthState;
+
+                await this.server.settings.app.iotCentralModule.sendMeasurement(healthTelemetry, iotcOutput);
+            }
+
+            this.healthState = healthState;
+
+            for (const device of this.amsInferenceDeviceMap) {
+                forget(device[1].getHealth);
+            }
+        }
+        catch (ex) {
+            this.server.log([moduleName, 'error'], `Error in healthState (may indicate a critical issue): ${ex.message}`);
+            this.healthState = HealthState.Critical;
+        }
+
+        if (this.healthState < HealthState.Good) {
+            this.server.log(['HealthService', 'warning'], `Health check warning: ${healthState}`);
+
+            if (++this.healthCheckFailStreak >= this.healthCheckRetries) {
+                this.server.log(['HealthService', 'warning'], `Health check too many warnings: ${healthState}`);
+
+                await this.restartModule(0, 'checkHealthState');
+            }
+        }
+
+        return this.healthState;
+    }
+
+    public async restartModule(timeout: number, reason: string): Promise<void> {
+        this.server.log([moduleName, 'info'], `Module restart requested...`);
+
+        try {
+            await this.server.settings.app.iotCentralModule.sendMeasurement({
+                [LvaGatewayInterface.Event.ModuleRestart]: reason,
+                [LvaGatewayInterface.State.ModuleState]: ModuleState.Inactive,
+                [LvaGatewayInterface.Event.ModuleStopped]: 'Module restart'
+            }, iotcOutput);
+
+            if (timeout > 0) {
+                await new Promise((resolve) => {
+                    setTimeout(() => {
+                        return resolve('');
+                    }, 1000 * timeout);
+                });
+            }
+        }
+        catch (ex) {
+            this.server.log([moduleName, 'error'], `${ex.message}`);
+        }
+
+        // let Docker restart our container
+        this.server.log([moduleName, 'info'], `Shutting down main process - module container will restart`);
+        process.exit(1);
+    }
+
+    private async getSystemProperties(): Promise<ISystemProperties> {
+        const cpus = osCpus();
+        const cpuUsageSamples = osLoadAvg();
+
+        return {
+            cpuModel: cpus[0]?.model || 'Unknown',
+            cpuCores: cpus?.length || 0,
+            cpuUsage: cpuUsageSamples[0],
+            totalMemory: osTotalMem() / 1024,
+            freeMemory: osFreeMem() / 1024
+        };
+    }
+
+    private async getAppConfigFromHost(): Promise<any> {
+        try {
+            return this.storage.get('state');
+        }
+        catch (ex) {
+            this.server.log([moduleName, 'error'], `Error reading host configuration data: ${ex.message}`);
+        }
+
+        return {};
+    }
+
+    private async validateLeafDeviceOwner(deviceId: string): Promise<ICameraDeviceProvisionInfo> {
+        try {
+            this.server.log([moduleName, 'info'], `Getting component interfaces on device: ${deviceId}`);
+
+            const devicePropertiesResponse = await this.iotcApiRequest(
+                `https://${this.appConfig.iotCentral.appHost}/api/preview/devices/${deviceId}/properties`,
+                'get',
+                {
+                    headers: {
+                        Authorization: this.appConfig.iotCentral.apiToken
+                    },
+                    json: true
+                });
+
+            if (!devicePropertiesResponse[LvaOperationsInterfaceId]) {
+                this.server.log([moduleName, 'error'], `Could not find LVA interface(s) on device id: ${deviceId}`);
+                return;
+            }
+
+            return {
+                cameraId: deviceId,
+                cameraName: devicePropertiesResponse[OnvifCameraInterface.Property.CameraName],
+                ipAddress: devicePropertiesResponse[OnvifCameraInterface.Property.IpAddress],
+                onvifUsername: devicePropertiesResponse[OnvifCameraInterface.Property.OnvifUsername],
+                onvifPassword: devicePropertiesResponse[OnvifCameraInterface.Property.OnvifPassword],
+                detectionType: devicePropertiesResponse[LvaCameraDeviceTypeMap[AddCameraDetectionType.Object].templateId]
+                    ? AddCameraDetectionType.Object
+                    : AddCameraDetectionType.Motion
+            };
+        }
+        catch (ex) {
+            this.server.log([moduleName, 'error'], `Error getting properties for device id: ${deviceId}`);
+        }
+
+        return;
+    }
+
+    private async recreateExistingDevices() {
+        this.server.log([moduleName, 'info'], 'recreateExistingDevices');
+
+        try {
+            const deviceListResponse = await this.iotcApiRequest(
+                `https://${this.appConfig.iotCentral.appHost}/api/preview/devices`,
+                'get',
+                {
+                    headers: {
+                        Authorization: this.appConfig.iotCentral.apiToken
+                    },
+                    json: true
+                });
+
+            const deviceList = deviceListResponse.payload?.value || [];
+
+            this.server.log([moduleName, 'info'], `Found ${deviceList.length} devices`);
+            if (this.debugTelemetry()) {
+                this.server.log([moduleName, 'info'], `${JSON.stringify(deviceList, null, 4)}`);
+            }
+
+            for (const device of deviceList) {
+                try {
+                    const cameraInfo = await this.validateLeafDeviceOwner(device.id);
+                    if (cameraInfo) {
+                        this.server.log([moduleName, 'info'], `Recreating device: ${device.id} - detectionType: ${cameraInfo.detectionType}`);
+
+                        await this.createAmsInferenceDevice(cameraInfo);
+                    }
+                }
+                catch (ex) {
+                    this.server.log([moduleName, 'error'], `An error occurred while re-creating devices: ${ex.message}`);
+                }
+            }
+        }
+        catch (ex) {
+            this.server.log([moduleName, 'error'], `Failed to get device list: ${ex.message}`);
+        }
+
+        // If there were errors, we may be in a bad state (e.g. an ams inference device exists
+        // but we were not able to re-connect to it's client interface). Consider setting the health
+        // state to critical here to restart the gateway module.
+    }
+
     private async createAmsInferenceDevice(cameraInfo: ICameraDeviceProvisionInfo): Promise<IProvisionResult> {
         this.server.log([moduleName, 'info'], `createAmsInferenceDevice - cameraId: ${cameraInfo.cameraId}, cameraName: ${cameraInfo.cameraName}, detectionType: ${cameraInfo.detectionType}`);
 
@@ -776,10 +668,10 @@ export class ModuleService {
                 return deviceProvisionResult;
             }
 
-            if (!this.iotCentralAppKeys.iotCentralAppHost
-                || !this.iotCentralAppKeys.iotCentralAppApiToken
-                || !this.iotCentralAppKeys.iotCentralDeviceProvisioningKey
-                || !this.iotCentralAppKeys.iotCentralScopeId) {
+            if (!this.appConfig.iotCentral.appHost
+                || !this.appConfig.iotCentral.apiToken
+                || !this.appConfig.iotCentral.deviceKey
+                || !this.appConfig.iotCentral.scopeId) {
 
                 deviceProvisionResult.dpsProvisionStatus = false;
                 deviceProvisionResult.dpsProvisionMessage = `Missing camera management settings (ScopeId)`;
@@ -793,7 +685,9 @@ export class ModuleService {
             if (deviceProvisionResult.dpsProvisionStatus === true && deviceProvisionResult.clientConnectionStatus === true) {
                 this.amsInferenceDeviceMap.set(cameraInfo.cameraId, deviceProvisionResult.amsInferenceDevice);
 
-                await this.sendMeasurement({ [LvaGatewayInterface.Event.CreateCamera]: cameraInfo.cameraId });
+                await this.server.settings.app.iotCentralModule.sendMeasurement({
+                    [LvaGatewayInterface.Event.CreateCamera]: cameraInfo.cameraId
+                }, iotcOutput);
 
                 this.server.log([moduleName, 'info'], `Succesfully provisioned camera device with id: ${cameraInfo.cameraId}`);
             }
@@ -821,26 +715,26 @@ export class ModuleService {
         };
 
         try {
-            const amsGraph = await AmsGraph.createAmsGraph(this, this.moduleDeploymentProperties.amsAccountName, cameraInfo);
-            this.server.log([moduleName, 'info'], `Create AmsGraph succeeded: ${this.moduleDeploymentProperties.amsAccountName}`);
+            const amsGraph = await AmsGraph.createAmsGraph(this.server.settings.app.iotCentralModule, cameraInfo);
+            this.server.log([moduleName, 'info'], `Create AmsGraph succeeded: ${this.appConfig.env.amsAccountName}`);
 
-            const deviceKey = this.computeDeviceKey(cameraInfo.cameraId, this.iotCentralAppKeys.iotCentralDeviceProvisioningKey);
+            const deviceKey = this.computeDeviceKey(cameraInfo.cameraId, this.appConfig.iotCentral.deviceKey);
             this.server.log([moduleName, 'info'], `Computed deviceKey: ${deviceKey}`);
 
             const provisioningSecurityClient = new SymmetricKeySecurityClient(cameraInfo.cameraId, deviceKey);
             const provisioningClient = ProvisioningDeviceClient.create(
                 this.dpsProvisioningHost,
-                this.iotCentralAppKeys.iotCentralScopeId,
+                this.appConfig.iotCentral.scopeId,
                 new ProvisioningTransport(),
                 provisioningSecurityClient);
 
             this.server.log([moduleName, 'info'], `Created provisioningClient succeeded`);
 
             const provisioningPayload = {
-                iotcModelId: LvaInferenceDeviceMap[cameraInfo.detectionType].templateId,
+                iotcModelId: LvaCameraDeviceTypeMap[cameraInfo.detectionType].templateId,
                 iotcGateway: {
-                    iotcGatewayId: this.iotcGatewayInstanceId,
-                    iotcModuleId: this.iotcGatewayModuleId
+                    iotcGatewayId: this.server.settings.app.iotCentralModule.deviceId,
+                    iotcModuleId: this.server.settings.app.iotCentralModule.moduleId
                 }
             };
 
@@ -866,7 +760,7 @@ export class ModuleService {
             deviceProvisionResult.dpsProvisionMessage = `IoT Central successfully provisioned device: ${cameraInfo.cameraId}`;
             deviceProvisionResult.dpsHubConnectionString = dpsConnectionString;
 
-            deviceProvisionResult.amsInferenceDevice = new LvaInferenceDeviceMap[cameraInfo.detectionType].deviceClass(this, amsGraph, cameraInfo);
+            deviceProvisionResult.amsInferenceDevice = new LvaCameraDeviceTypeMap[cameraInfo.detectionType].deviceClass(this.server.settings.app.iotCentralModule, amsGraph, cameraInfo);
 
             const { clientConnectionStatus, clientConnectionMessage } = await deviceProvisionResult.amsInferenceDevice.connectDeviceClient(deviceProvisionResult.dpsHubConnectionString);
 
@@ -900,16 +794,18 @@ export class ModuleService {
             this.server.log([moduleName, 'info'], `Deleting IoT Central device instance: ${cameraId}`);
             try {
                 await this.iotcApiRequest(
-                    `https://${this.iotCentralAppKeys.iotCentralAppHost}/api/preview/devices/${cameraId}`,
+                    `https://${this.appConfig.iotCentral.appHost}/api/preview/devices/${cameraId}`,
                     'delete',
                     {
                         headers: {
-                            Authorization: this.iotCentralAppKeys.iotCentralAppApiToken
+                            Authorization: this.appConfig.iotCentral.apiToken
                         },
                         json: true
                     });
 
-                await this.sendMeasurement({ [LvaGatewayInterface.Event.DeleteCamera]: cameraId });
+                await this.server.settings.app.iotCentralModule.sendMeasurement({
+                    [LvaGatewayInterface.Event.DeleteCamera]: cameraId
+                }, iotcOutput);
 
                 this.server.log([moduleName, 'info'], `Succesfully de-provisioned camera device with id: ${cameraId}`);
 
@@ -987,81 +883,6 @@ export class ModuleService {
             status: true,
             message: `Success`
         };
-    }
-
-    @bind
-    private onModuleClientError(error: Error) {
-        this.server.log([moduleName, 'error'], `Module client connection error: ${error.message}`);
-        this.healthState = HealthState.Critical;
-    }
-
-    private async updateModuleProperties(properties: any): Promise<void> {
-        if (!properties || !this.moduleTwin) {
-            return;
-        }
-
-        try {
-            await new Promise((resolve, reject) => {
-                this.moduleTwin.properties.reported.update(properties, (error) => {
-                    if (error) {
-                        return reject(error);
-                    }
-
-                    return resolve('');
-                });
-            });
-
-            if (this.moduleSettings[LvaGatewaySettings.DebugTelemetry] === true) {
-                this.server.log([moduleName, 'info'], `Module properties updated: ${JSON.stringify(properties, null, 4)}`);
-            }
-        }
-        catch (ex) {
-            this.server.log([moduleName, 'error'], `Error updating module properties: ${ex.message}`);
-        }
-    }
-
-    @bind
-    private async onHandleModuleProperties(desiredChangedSettings: any) {
-        try {
-            this.server.log([moduleName, 'info'], `onHandleModuleProperties`);
-            if (this.moduleSettings[LvaGatewaySettings.DebugTelemetry] === true) {
-                this.server.log([moduleName, 'info'], `desiredChangedSettings:\n${JSON.stringify(desiredChangedSettings, null, 4)}`);
-            }
-
-            const patchedProperties = {};
-
-            for (const setting in desiredChangedSettings) {
-                if (!Object.prototype.hasOwnProperty.call(desiredChangedSettings, setting)) {
-                    continue;
-                }
-
-                if (setting === '$version') {
-                    continue;
-                }
-
-                const value = desiredChangedSettings[setting];
-
-                switch (setting) {
-                    case LvaGatewayInterface.Setting.DebugTelemetry:
-                    case LvaGatewayInterface.Setting.DebugRoutedMessage:
-                        patchedProperties[setting] = this.moduleSettings[setting] = value || false;
-                        break;
-
-                    default:
-                        this.server.log([moduleName, 'error'], `Received desired property change for unknown setting '${setting}'`);
-                        break;
-                }
-            }
-
-            if (!emptyObj(patchedProperties)) {
-                await this.updateModuleProperties(patchedProperties);
-            }
-        }
-        catch (ex) {
-            this.server.log([moduleName, 'error'], `Exception while handling desired properties: ${ex.message}`);
-        }
-
-        this.deferredStart.resolve();
     }
 
     @bind

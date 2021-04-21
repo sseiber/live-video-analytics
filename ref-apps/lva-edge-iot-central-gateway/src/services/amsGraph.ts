@@ -1,35 +1,37 @@
+import { IIoTCentralModule } from '../plugins/iotCentral';
 import {
-    ICameraDeviceProvisionInfo,
-    ModuleService
-} from './module';
+    IEnvConfig,
+    ICameraDeviceProvisionInfo
+} from './cameraGateway';
 import { Message as IoTMessage } from 'azure-iot-device';
 import * as fse from 'fs-extra';
 import { resolve as pathResolve } from 'path';
 import * as moment from 'moment';
 
+const moduleName = 'AmsGraph';
 const contentRootDirectory = process.env.CONTENT_ROOT || '/data/content';
 
 export class AmsGraph {
-    public static async createAmsGraph(lvaGatewayModule: ModuleService, amsAccountName: string, cameraInfo: ICameraDeviceProvisionInfo): Promise<AmsGraph> {
+    public static async createAmsGraph(iotCentralModule: IIoTCentralModule, cameraInfo: ICameraDeviceProvisionInfo): Promise<AmsGraph> {
         try {
-            const graphInstancePath = pathResolve(contentRootDirectory, `${cameraInfo.detectionType}GraphInstance.json`);
-            const graphInstance = fse.readJSONSync(graphInstancePath);
+            const pipelineInstancePath = pathResolve(contentRootDirectory, `${cameraInfo.detectionType}PipelineInstance.json`);
+            const pipelineInstance = fse.readJSONSync(pipelineInstancePath);
 
-            graphInstance.name = cameraInfo.cameraId;
+            pipelineInstance.name = cameraInfo.cameraId;
 
-            // lvaGatewayModule.logger(['AmsGraph', 'info'], `### graphData: ${JSON.stringify(graphInstance, null, 4)}`);
+            // iotCentralModule.logger([moduleName, cameraInfo.cameraId, 'info'], `### graphData: ${JSON.stringify(pipelineInstance, null, 4)}`);
 
-            const graphTopologyPath = pathResolve(contentRootDirectory, `${cameraInfo.detectionType}GraphTopology.json`);
-            const graphTopology = fse.readJSONSync(graphTopologyPath);
+            const pipelineTopologyPath = pathResolve(contentRootDirectory, `${cameraInfo.detectionType}PipelineTopology.json`);
+            const pipelineTopology = fse.readJSONSync(pipelineTopologyPath);
 
-            // lvaGatewayModule.logger(['AmsGraph', 'info'], `### graphData: ${JSON.stringify(graphTopology, null, 4)}`);
+            // iotCentralModule.logger([moduleName, cameraInfo.cameraId, 'info'], `### graphData: ${JSON.stringify(pipelineTopology, null, 4)}`);
 
-            const amsGraph = new AmsGraph(lvaGatewayModule, amsAccountName, cameraInfo, graphInstance, graphTopology);
+            const amsGraph = new AmsGraph(iotCentralModule, cameraInfo, pipelineInstance, pipelineTopology);
 
             return amsGraph;
         }
         catch (ex) {
-            lvaGatewayModule.logger(['AmsGraph', 'error'], `Error while loading graph topology: ${ex.message}`);
+            iotCentralModule.logger([moduleName, cameraInfo.cameraId, 'error'], `Error while loading pipeline topology: ${ex.message}`);
         }
     }
 
@@ -37,10 +39,10 @@ export class AmsGraph {
         const subject = AmsGraph.getLvaMessageProperty(message, 'subject');
         if (subject) {
             const graphPathElements = subject.split('/');
-            if (graphPathElements.length >= 3 && graphPathElements[1] === 'graphInstances') {
-                const graphInstanceName = graphPathElements[2] || '';
-                if (graphInstanceName) {
-                    return graphInstanceName.substring(graphInstanceName.indexOf('_') + 1) || '';
+            if (graphPathElements.length >= 3 && graphPathElements[1] === 'pipelineInstances') {
+                const pipelineInstanceName = graphPathElements[2] || '';
+                if (pipelineInstanceName) {
+                    return pipelineInstanceName.substring(pipelineInstanceName.indexOf('_') + 1) || '';
                 }
             }
         }
@@ -54,27 +56,30 @@ export class AmsGraph {
         return messageProperty?.value || '';
     }
 
-    private lvaGatewayModule: ModuleService;
-    private amsAccountName: string;
-    private amsAssetName: string;
-    private rtspUrl: string;
-    private rtspAuthUsername: string;
-    private rtspAuthPassword: string;
+    private iotCentralModule: IIoTCentralModule;
+    private envConfig: IEnvConfig;
+    private cameraInfo: ICameraDeviceProvisionInfo;
     private instance: any;
     private topology: any;
+
+    private rtspUrl: string;
+    private amsAssetName: string;
     private instanceName: any;
     private topologyName: any;
 
-    constructor(lvaGatewayModule: ModuleService, amsAccountName: string, cameraInfo: ICameraDeviceProvisionInfo, instance: any, topology: any) {
-        this.lvaGatewayModule = lvaGatewayModule;
-        this.amsAccountName = amsAccountName;
-        this.amsAssetName = '';
-        this.rtspUrl = cameraInfo.rtspUrl;
-        this.rtspAuthUsername = cameraInfo.rtspAuthUsername;
-        this.rtspAuthPassword = cameraInfo.rtspAuthPassword;
+    constructor(iotCentralModule: IIoTCentralModule,
+        cameraInfo: ICameraDeviceProvisionInfo,
+        instance: any,
+        topology: any) {
+
+        this.iotCentralModule = iotCentralModule;
+        this.envConfig = iotCentralModule.getAppConfig().env;
+        this.cameraInfo = cameraInfo;
         this.instance = instance;
         this.topology = topology;
 
+        this.rtspUrl = '';
+        this.amsAssetName = '';
         this.instanceName = {
             ['@apiVersion']: instance['@apiVersion'],
             name: instance.name
@@ -104,14 +109,14 @@ export class AmsGraph {
 
     public setParam(paramName: string, value: any): void {
         if (!paramName || value === undefined) {
-            this.lvaGatewayModule.logger(['AmsGraph', 'error'], `setParam error - param: ${paramName}, value: ${value}`);
+            this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'error'], `setParam error - param: ${paramName}, value: ${value}`);
             return;
         }
 
         const params = this.instance.properties?.parameters || [];
         const param = params.find(item => item.name === paramName);
         if (!param) {
-            this.lvaGatewayModule.logger(['AmsGraph', 'warning'], `setParam no param named: ${paramName}`);
+            this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'warning'], `setParam no param named: ${paramName}`);
             return;
         }
 
@@ -119,12 +124,16 @@ export class AmsGraph {
     }
 
     public async startLvaGraph(graphParameters: any): Promise<boolean> {
-        this.lvaGatewayModule.logger(['AmsGraph', 'info'], `startLvaGraph`);
+        this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'info'], `startLvaGraph`);
 
         let result = false;
 
         try {
-            result = await this.setTopology();
+            result = await this.resolveOnvifRtspConnection('');
+
+            if (result === true) {
+                result = await this.setTopology();
+            }
 
             if (result === true) {
                 result = await this.setInstance(graphParameters);
@@ -135,14 +144,14 @@ export class AmsGraph {
             }
         }
         catch (ex) {
-            this.lvaGatewayModule.logger(['AmsGraph', 'error'], `startLvaGraph error: ${ex.message}`);
+            this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'error'], `startLvaGraph error: ${ex.message}`);
         }
 
         return result;
     }
 
     public async stopLvaGraph(): Promise<boolean> {
-        this.lvaGatewayModule.logger(['AmsGraph', 'info'], `stopLvaGraph`);
+        this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'info'], `stopLvaGraph`);
 
         let result = false;
 
@@ -152,14 +161,14 @@ export class AmsGraph {
             result = true;
         }
         catch (ex) {
-            this.lvaGatewayModule.logger(['AmsGraph', 'error'], `stopLvaGraph error: ${ex.message}`);
+            this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'error'], `stopLvaGraph error: ${ex.message}`);
         }
 
         return result;
     }
 
     public async deleteLvaGraph(): Promise<boolean> {
-        this.lvaGatewayModule.logger(['AmsGraph', 'info'], `deleteLvaGraph`);
+        this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'info'], `deleteLvaGraph`);
 
         let result = false;
 
@@ -171,7 +180,7 @@ export class AmsGraph {
             result = true;
         }
         catch (ex) {
-            this.lvaGatewayModule.logger(['AmsGraph', 'error'], `deleteLvaGraph error: ${ex.message}`);
+            this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'error'], `deleteLvaGraph error: ${ex.message}`);
         }
 
         return result;
@@ -182,17 +191,43 @@ export class AmsGraph {
             videoPlaybackHost = videoPlaybackHost.slice(0, -1);
         }
 
-        return `${videoPlaybackHost}/ampplayer?ac=${this.amsAccountName}&an=${this.amsAssetName}&st=${startTime.format('YYYY-MM-DDTHH:mm:ss[Z]')}&du=${duration}`;
+        return `${videoPlaybackHost}/ampplayer?ac=${this.envConfig.amsAccountName}&an=${this.amsAssetName}&st=${startTime.format('YYYY-MM-DDTHH:mm:ss[Z]')}&du=${duration}`;
+    }
+
+    private async resolveOnvifRtspConnection(mediaProfileToken: string): Promise<boolean> {
+        try {
+            const requestParams = {
+                Address: this.cameraInfo.ipAddress,
+                Username: this.cameraInfo.onvifUsername,
+                Password: this.cameraInfo.onvifPassword,
+                MediaProfileToken: mediaProfileToken
+            };
+
+            const serviceResponse = await this.iotCentralModule.invokeDirectMethod(
+                this.envConfig.onvifModuleId,
+                'GetRTSPStreamURI',
+                requestParams);
+
+            this.rtspUrl = serviceResponse.status === 200 ? serviceResponse.payload : '';
+        }
+        catch (ex) {
+            this.iotCentralModule.logger([moduleName, 'error'], `An error occurred while getting onvif stream uri from device id: ${this.cameraInfo.cameraId}`);
+        }
+
+        return !!this.rtspUrl;
     }
 
     private async setTopology(): Promise<boolean> {
-        const response = await this.lvaGatewayModule.invokeLvaModuleMethod(`GraphTopologySet`, this.topology);
-        return response?.result;
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineTopologySet`, this.topology);
+
+        return response.status === 200;
     }
 
     // @ts-ignore
-    private async deleteTopology() {
-        return this.lvaGatewayModule.invokeLvaModuleMethod(`GraphTopologyDelete`, this.topologyName);
+    private async deleteTopology(): Promise<boolean> {
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineTopologyDelete`, this.topologyName);
+
+        return response.status === 200;
     }
 
     private async setInstance(graphParameters: any): Promise<boolean> {
@@ -200,8 +235,8 @@ export class AmsGraph {
         this.setParam('assetName', this.amsAssetName);
 
         this.setParam('rtspUrl', this.rtspUrl);
-        this.setParam('rtspAuthUsername', this.rtspAuthUsername);
-        this.setParam('rtspAuthPassword', this.rtspAuthPassword);
+        this.setParam('rtspAuthUsername', this.cameraInfo.onvifUsername);
+        this.setParam('rtspAuthPassword', this.cameraInfo.onvifPassword);
 
         for (const param in graphParameters) {
             if (!Object.prototype.hasOwnProperty.call(graphParameters, param)) {
@@ -211,21 +246,26 @@ export class AmsGraph {
             this.setParam(param, graphParameters[param]);
         }
 
-        const response = await this.lvaGatewayModule.invokeLvaModuleMethod(`GraphInstanceSet`, this.instance);
-        return response?.result;
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineInstanceSet`, this.instance);
+
+        return response.status === 200;
     }
 
-    // @ts-ignore
-    private async deleteInstance() {
-        return this.lvaGatewayModule.invokeLvaModuleMethod(`GraphInstanceDelete`, this.instanceName);
+    private async deleteInstance(): Promise<boolean> {
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineInstanceDelete`, this.instanceName);
+
+        return response.status === 200;
     }
 
     private async activateInstance(): Promise<boolean> {
-        const response = await this.lvaGatewayModule.invokeLvaModuleMethod(`GraphInstanceActivate`, this.instanceName);
-        return response?.result;
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineInstanceActivate`, this.instanceName);
+
+        return response.status === 200;
     }
 
-    private async deactivateInstance() {
-        return this.lvaGatewayModule.invokeLvaModuleMethod(`GraphInstanceDeactivate`, this.instanceName);
+    private async deactivateInstance(): Promise<boolean> {
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineInstanceDeactivate`, this.instanceName);
+
+        return response.status === 200;
     }
 }

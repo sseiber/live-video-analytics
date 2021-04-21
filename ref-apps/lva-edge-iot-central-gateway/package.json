@@ -1,6 +1,6 @@
 {
     "name": "lva-edge-gateway",
-    "version": "1.0.0",
+    "version": "3.0.0",
     "description": "Azure IoT Central gateway module for Azure Media Services LVA Edge",
     "main": "index.js",
     "scripts": {

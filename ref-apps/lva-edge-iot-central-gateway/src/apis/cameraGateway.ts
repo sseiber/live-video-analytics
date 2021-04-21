@@ -1,15 +1,15 @@
 import { inject, RoutePlugin, route } from 'spryly';
 import { Request, ResponseObject, ResponseToolkit } from '@hapi/hapi';
-import { ICameraDeviceProvisionInfo, ModuleService } from '../services/module';
+import { ICameraDeviceProvisionInfo, CameraGatewayService } from '../services/cameraGateway';
 import {
     badRequest as boom_badRequest,
     badImplementation as boom_badImplementation
 } from '@hapi/boom';
 import { emptyObj } from '../utils';
 
-export class ModuleRoutes extends RoutePlugin {
-    @inject('module')
-    private module: ModuleService;
+export class CameraGatewayRoutes extends RoutePlugin {
+    @inject('cameraGateway')
+    private cameraGateway: CameraGatewayService;
 
     @route({
         method: 'POST',
@@ -24,23 +24,23 @@ export class ModuleRoutes extends RoutePlugin {
             const cameraInfo: ICameraDeviceProvisionInfo = {
                 cameraId: request.params?.cameraId,
                 cameraName: (request.payload as any)?.cameraName,
-                rtspUrl: (request.payload as any)?.rtspUrl,
-                rtspAuthUsername: (request.payload as any)?.rtspAuthUsername,
-                rtspAuthPassword: (request.payload as any)?.rtspAuthPassword,
+                ipAddress: (request.payload as any)?.ipAddress,
+                onvifUsername: (request.payload as any)?.onvifUsername,
+                onvifPassword: (request.payload as any)?.onvifPassword,
                 detectionType: (request.payload as any)?.detectionType || 'person'
             };
 
             if (!cameraInfo.cameraId
                 || !cameraInfo.cameraName
-                || !cameraInfo.rtspUrl
-                || !cameraInfo.rtspAuthUsername
-                || !cameraInfo.rtspAuthPassword
+                || !cameraInfo.ipAddress
+                || !cameraInfo.onvifUsername
+                || !cameraInfo.onvifPassword
                 || !cameraInfo.detectionType
             ) {
                 throw boom_badRequest('Missing parameters (cameraId, cameraName, detectionType)');
             }
 
-            const dpsProvisionResult = await this.module.createCamera(cameraInfo);
+            const dpsProvisionResult = await this.cameraGateway.createCamera(cameraInfo);
 
             const resultMessage = dpsProvisionResult.dpsProvisionMessage || dpsProvisionResult.clientConnectionMessage;
             if (dpsProvisionResult.dpsProvisionStatus === false || dpsProvisionResult.clientConnectionStatus === false) {
@@ -69,7 +69,7 @@ export class ModuleRoutes extends RoutePlugin {
                 throw boom_badRequest('Missing cameraId');
             }
 
-            const operationResult = await this.module.deleteCamera({
+            const operationResult = await this.cameraGateway.deleteCamera({
                 cameraId,
                 operationInfo: {}
             });
@@ -102,7 +102,7 @@ export class ModuleRoutes extends RoutePlugin {
                 throw boom_badRequest('Missing cameraId or telemetry');
             }
 
-            const operationResult = await this.module.sendCameraTelemetry({
+            const operationResult = await this.cameraGateway.sendCameraTelemetry({
                 cameraId,
                 operationInfo: telemetry
             });
@@ -135,7 +135,7 @@ export class ModuleRoutes extends RoutePlugin {
                 throw boom_badRequest('Missing cameraId or telemetry');
             }
 
-            const operationResult = await this.module.sendCameraInferences({
+            const operationResult = await this.cameraGateway.sendCameraInferences({
                 cameraId,
                 operationInfo: inferences
             });

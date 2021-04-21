@@ -2,11 +2,11 @@
 import { HealthService } from './health';
 import { ConfigService } from './config';
 import { StorageService } from './storage';
-import { ModuleService } from './module';
+import { CameraGatewayService } from './cameraGateway';
 
 export default [
     HealthService,
     ConfigService,
     StorageService,
-    ModuleService
+    CameraGatewayService
 ];

@@ -12,16 +12,16 @@ const composeOptions: ComposeOptions = {
     relativeTo: __dirname,
     logCompose: {
         serializers: {
-            req: (req: any) => {
+            req: (req) => {
                 return `${(req.method || '').toUpperCase()} ${req.headers?.host} ${req.url}`;
             },
-            res: (res: any) => {
+            res: (res) => {
                 return `${res.statusCode} ${res.raw?.statusMessage}`;
             },
-            tags: (tags: any) => {
+            tags: (tags) => {
                 return `[${tags}]`;
             },
-            responseTime: (responseTime: any) => {
+            responseTime: (responseTime) => {
                 return `${responseTime}ms`;
             }
         },
@@ -65,10 +65,6 @@ async function start() {
         server.log(['startup', 'info'], ` > Plugins: [${Object.keys(server.registrations).join(', ')}]`);
         server.log(['startup', 'info'], ` > Machine: ${osType()}, ${osCpus().length} core, ` +
             `freemem=${(osFreeMem() / 1024 / 1024).toFixed(0)}mb, totalmem=${(osTotalMem() / 1024 / 1024).toFixed(0)}mb`);
-
-        server.log(['startup', 'info'], `📷 Starting module initialzation`);
-        await (server.methods.module as any).startModule();
-        server.log(['startup', 'info'], `📸 Finished module initialization`);
     }
     catch (error) {
         // eslint-disable-next-line no-console

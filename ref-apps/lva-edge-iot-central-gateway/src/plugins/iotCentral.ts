@@ -7,7 +7,7 @@ import {
     DeviceMethodRequest,
     DeviceMethodResponse
 } from 'azure-iot-device';
-import { bind, defer, sleep } from '../utils';
+import { bind, defer } from '../utils';
 
 declare module '@hapi/hapi' {
     interface ServerOptionsApp {
@@ -15,7 +15,8 @@ declare module '@hapi/hapi' {
     }
 }
 
-const moduleName = 'IotCentralModulePlugin';
+const pluginModuleName = 'IotCentralModulePlugin';
+const moduleName = 'IotCentralModule';
 
 export interface IDirectMethodResult {
     status: number;
@@ -24,25 +25,28 @@ export interface IDirectMethodResult {
 }
 
 export interface IIoTCentralModulePluginOptions {
-    getAppKeys?: () => any;
-    debugTelemetry: () => boolean;
-    onHandleModuleProperties: (desiredProps: any) => Promise<void>;
-    onModuleClientError: (error: Error) => void;
-    onModuleReady: () => Promise<void>;
+    getAppConfig?(): any;
+    debugTelemetry(): boolean;
+    onHandleModuleProperties(desiredProps: any): Promise<void>;
+    onHandleDownstreamMessages?(inputName: string, message: IoTMessage): Promise<void>;
+    onModuleClientError(error: Error): void;
+    onModuleReady(): Promise<void>;
+    logger?(tags: any, message: any): void;
 }
 
 export type DirectMethodFunction = (commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) => Promise<void>;
 
-interface IIoTCentralModule {
+export interface IIoTCentralModule {
     moduleId: string;
     deviceId: string;
-    getAppKeys(): any;
+    getAppConfig(): any;
     getModuleClient(): ModuleClient;
     debugTelemetry(): boolean;
-    sendMeasurement(data: any): Promise<void>;
+    sendMeasurement(data: any, outputName?: string): Promise<void>;
     updateModuleProperties(properties: any): Promise<void>;
     addDirectMethod(directMethodName: string, directMethodFunction: DirectMethodFunction): void;
-    invokeDirectMethod(deviceId: string, methodName: string, payload: any): Promise<IDirectMethodResult>;
+    invokeDirectMethod(moduleId: string, methodName: string, payload: any): Promise<IDirectMethodResult>;
+    logger(tags: any, message: any): void;
 }
 
 export const iotCentralModulePlugin: Plugin<any> = {
@@ -50,7 +54,7 @@ export const iotCentralModulePlugin: Plugin<any> = {
 
     // @ts-ignore (server, options)
     register: async (server: Server, options: IoTCentralModulePluginOptions) => {
-        server.log([moduleName, 'info'], 'register');
+        server.log([pluginModuleName, 'info'], 'register');
 
         if (!options.debugTelemetry) {
             throw new Error('Missing required option debugTelemetry in IoTCentralModuleOptions');
@@ -66,39 +70,11 @@ export const iotCentralModulePlugin: Plugin<any> = {
 
         const plugin = new IotCentralModule(server, options);
 
-        const iotCentralPlugin: IIoTCentralModule = {
-            moduleId: process.env.IOTEDGE_MODULEID || '',
-            deviceId: process.env.IOTEDGE_DEVICEID || '',
-            getAppKeys: (): any => {
-                return {};
-            },
-            getModuleClient: (): ModuleClient => {
-                return null;
-            },
-            debugTelemetry: (): boolean => {
-                return false;
-            },
-            sendMeasurement: async (): Promise<void> => {
-                return;
-            },
-            updateModuleProperties: async (): Promise<void> => {
-                return;
-            },
-            addDirectMethod: () => {
-                return;
-            },
-            invokeDirectMethod: async (): Promise<IDirectMethodResult> => {
-                return;
-            }
-        };
-
-        server.settings.app.iotCentralModule = iotCentralPlugin;
-
         await plugin.startModule();
     }
 };
 
-export class IotCentralModule {
+class IotCentralModule {
     private server: Server;
     private moduleClient: ModuleClient = null;
     private moduleTwin: Twin = null;
@@ -120,13 +96,14 @@ export class IotCentralModule {
         try {
             this.server.settings.app.iotCentralModule.moduleId = process.env.IOTEDGE_MODULEID || '';
             this.server.settings.app.iotCentralModule.deviceId = process.env.IOTEDGE_DEVICEID || '';
-            this.server.settings.app.iotCentralModule.getAppKeys = this.getAppKeys;
+            this.server.settings.app.iotCentralModule.getAppConfig = this.getAppConfig;
             this.server.settings.app.iotCentralModule.getModuleClient = this.getModuleClient;
             this.server.settings.app.iotCentralModule.debugTelemetry = this.debugTelemetry;
             this.server.settings.app.iotCentralModule.sendMeasurement = this.sendMeasurement;
             this.server.settings.app.iotCentralModule.updateModuleProperties = this.updateModuleProperties;
             this.server.settings.app.iotCentralModule.addDirectMethod = this.addDirectMethod;
             this.server.settings.app.iotCentralModule.invokeDirectMethod = this.invokeDirectMethod;
+            this.server.settings.app.iotCentralModule.logger = this.logger;
 
             result = await this.connectModuleClient();
 
@@ -139,15 +116,15 @@ export class IotCentralModule {
         catch (ex) {
             result = false;
 
-            this.server.log(['IoTCentralModule', 'error'], `Exception during IoT Central device provsioning: ${ex.message}`);
+            this.server.log([moduleName, 'error'], `Exception during IoT Central device provsioning: ${ex.message}`);
         }
 
         return result;
     }
 
     @bind
-    public getAppKeys(): any {
-        return this.options?.getAppKeys() || {};
+    public getAppConfig(): any {
+        return this.options?.getAppConfig() || {};
     }
 
     @bind
@@ -161,7 +138,7 @@ export class IotCentralModule {
     }
 
     @bind
-    public async sendMeasurement(data: any): Promise<void> {
+    public async sendMeasurement(data: any, outputName?: string): Promise<void> {
         if (!data || !this.moduleClient) {
             return;
         }
@@ -169,14 +146,19 @@ export class IotCentralModule {
         try {
             const iotcMessage = new IoTMessage(JSON.stringify(data));
 
-            await this.moduleClient.sendEvent(iotcMessage);
+            if (outputName) {
+                await this.moduleClient.sendOutputEvent(outputName, iotcMessage);
+            }
+            else {
+                await this.moduleClient.sendEvent(iotcMessage);
+            }
 
             if (this.debugTelemetry() === true) {
-                this.server.log(['IoTCentralModule', 'info'], `sendEvent: ${JSON.stringify(data, null, 4)}`);
+                this.server.log([moduleName, 'info'], `sendEvent: ${JSON.stringify(data, null, 4)}`);
             }
         }
         catch (ex) {
-            this.server.log(['IoTCentralModule', 'error'], `sendMeasurement: ${ex.message}`);
+            this.server.log([moduleName, 'error'], `sendMeasurement: ${ex.message}`);
         }
     }
 
@@ -198,11 +180,11 @@ export class IotCentralModule {
             });
 
             if (this.debugTelemetry() === true) {
-                this.server.log(['IoTCentralModule', 'info'], `Module properties updated: ${JSON.stringify(properties, null, 4)}`);
+                this.server.log([moduleName, 'info'], `Module properties updated: ${JSON.stringify(properties, null, 4)}`);
             }
         }
         catch (ex) {
-            this.server.log(['IoTCentralModule', 'error'], `Error updating module properties: ${ex.message}`);
+            this.server.log([moduleName, 'error'], `Error updating module properties: ${ex.message}`);
         }
     }
 
@@ -216,7 +198,7 @@ export class IotCentralModule {
     }
 
     @bind
-    public async invokeDirectMethod(deviceId: string, methodName: string, payload: any): Promise<IDirectMethodResult> {
+    public async invokeDirectMethod(moduleId: string, methodName: string, payload: any): Promise<IDirectMethodResult> {
         const directMethodResult = {
             status: 200,
             message: '',
@@ -236,21 +218,21 @@ export class IotCentralModule {
             };
 
             if (this.debugTelemetry() === true) {
-                this.server.log(['IoTCentralModule', 'info'], `invokeOnvifModuleMethod request: ${JSON.stringify(methodParams, null, 4)}`);
+                this.server.log([moduleName, 'info'], `invokeOnvifModuleMethod request: ${JSON.stringify(methodParams, null, 4)}`);
             }
 
-            const response = await this.moduleClient.invokeMethod(this.server.settings.app.iotCentralModule.deviceId, deviceId, methodParams);
+            const response = await this.moduleClient.invokeMethod(this.server.settings.app.iotCentralModule.deviceId, moduleId, methodParams);
 
             if (this.debugTelemetry() === true) {
-                this.server.log(['IoTCentralModule', 'info'], `invokeOnvifModuleMethod response: ${JSON.stringify(response, null, 4)}`);
+                this.server.log([moduleName, 'info'], `invokeOnvifModuleMethod response: ${JSON.stringify(response, null, 4)}`);
             }
 
             directMethodResult.status = response.status;
 
             if (response.status < 200 || response.status > 299) {
                 // throw new Error(`(from invokeMethod) ${response.payload.error?.message}`);
-                directMethodResult.message = `Error executing directMethod ${methodName} on module ${deviceId}, status: ${response.status}`;
-                this.server.log(['IoTCentralModule', 'error'], directMethodResult.message);
+                directMethodResult.message = `Error executing directMethod ${methodName} on module ${moduleId}, status: ${response.status}`;
+                this.server.log([moduleName, 'error'], directMethodResult.message);
             }
             else {
                 directMethodResult.message = `invokeMethod succeeded`;
@@ -260,10 +242,20 @@ export class IotCentralModule {
         catch (ex) {
             directMethodResult.status = 500;
             directMethodResult.message = `Exception while calling invokeMethod: ${ex.message}`;
-            this.server.log(['IoTCentralModule', 'error'], directMethodResult.message);
+            this.server.log([moduleName, 'error'], directMethodResult.message);
         }
 
         return directMethodResult;
+    }
+
+    @bind
+    public logger(tags: any, message: any): void {
+        if (this.options.logger) {
+            this.options.logger(tags, message);
+        }
+        else {
+            this.server.log(tags, message);
+        }
     }
 
     private async connectModuleClient(): Promise<boolean> {
@@ -280,23 +272,17 @@ export class IotCentralModule {
         }
 
         try {
-            this.server.log(['IoTCentralModule', 'info'], `IOTEDGE_WORKLOADURI: ${process.env.IOTEDGE_WORKLOADURI}`);
-            this.server.log(['IoTCentralModule', 'info'], `IOTEDGE_DEVICEID: ${process.env.IOTEDGE_DEVICEID}`);
-            this.server.log(['IoTCentralModule', 'info'], `IOTEDGE_MODULEID: ${process.env.IOTEDGE_MODULEID}`);
-            this.server.log(['IoTCentralModule', 'info'], `IOTEDGE_MODULEGENERATIONID: ${process.env.IOTEDGE_MODULEGENERATIONID}`);
-            this.server.log(['IoTCentralModule', 'info'], `IOTEDGE_IOTHUBHOSTNAME: ${process.env.IOTEDGE_IOTHUBHOSTNAME}`);
-            this.server.log(['IoTCentralModule', 'info'], `IOTEDGE_AUTHSCHEME: ${process.env.IOTEDGE_AUTHSCHEME}`);
-
-            // TODO:
-            // We need to hang out here for a bit of time to avoid a race condition where the edgeHub module is not
-            // yet completely initialized. In the Edge runtime release 1.0.10-rc1 there is a new "priority" property
-            // that can be used for modules that need to start up in a certain order.
-            await sleep(15 * 1000);
+            this.server.log([moduleName, 'info'], `IOTEDGE_WORKLOADURI: ${process.env.IOTEDGE_WORKLOADURI}`);
+            this.server.log([moduleName, 'info'], `IOTEDGE_DEVICEID: ${process.env.IOTEDGE_DEVICEID}`);
+            this.server.log([moduleName, 'info'], `IOTEDGE_MODULEID: ${process.env.IOTEDGE_MODULEID}`);
+            this.server.log([moduleName, 'info'], `IOTEDGE_MODULEGENERATIONID: ${process.env.IOTEDGE_MODULEGENERATIONID}`);
+            this.server.log([moduleName, 'info'], `IOTEDGE_IOTHUBHOSTNAME: ${process.env.IOTEDGE_IOTHUBHOSTNAME}`);
+            this.server.log([moduleName, 'info'], `IOTEDGE_AUTHSCHEME: ${process.env.IOTEDGE_AUTHSCHEME}`);
 
             this.moduleClient = await ModuleClient.fromEnvironment(Mqtt);
         }
         catch (ex) {
-            this.server.log(['IoTCentralModule', 'error'], `Failed to instantiate client interface from configuraiton: ${ex.message}`);
+            this.server.log([moduleName, 'error'], `Failed to instantiate client interface from configuraiton: ${ex.message}`);
         }
 
         if (!this.moduleClient) {
@@ -306,25 +292,48 @@ export class IotCentralModule {
         try {
             await this.moduleClient.open();
 
-            this.server.log(['IoTCentralModule', 'info'], `Client is connected`);
+            this.server.log([moduleName, 'info'], `Client is connected`);
 
             // TODO:
             // Should the module twin interface get connected *BEFORE* opening
             // the moduleClient above?
             this.moduleTwin = await this.moduleClient.getTwin();
             this.moduleTwin.on('properties.desired', this.onHandleModuleProperties);
+            this.moduleClient.on('inputMessage', this.onHandleDownstreamMessages);
 
             this.moduleClient.on('error', this.onModuleClientError);
 
-            this.server.log(['IoTCentralModule', 'info'], `IoT Central successfully connected module: ${process.env.IOTEDGE_MODULEID}, instance id: ${process.env.IOTEDGE_DEVICEID}`);
+            this.server.log([moduleName, 'info'], `IoT Central successfully connected module: ${process.env.IOTEDGE_MODULEID}, instance id: ${process.env.IOTEDGE_DEVICEID}`);
         }
         catch (ex) {
-            this.server.log(['IoTCentralModule', 'error'], `IoT Central connection error: ${ex.message}`);
+            this.server.log([moduleName, 'error'], `IoT Central connection error: ${ex.message}`);
 
             result = false;
         }
 
         return result;
+    }
+
+    @bind
+    private async onHandleModuleProperties(desiredChangedSettings: any): Promise<void> {
+        if (!this.moduleClient) {
+            return;
+        }
+
+        await this.options.onHandleModuleProperties(desiredChangedSettings);
+
+        this.deferredStart.resolve();
+    }
+
+    @bind
+    private async onHandleDownstreamMessages(inputName: string, message: IoTMessage): Promise<void> {
+        if (!this.moduleClient || !message) {
+            return;
+        }
+
+        if (this.options.onHandleDownstreamMessages) {
+            await this.options.onHandleDownstreamMessages(inputName, message);
+        }
     }
 
     @bind
@@ -337,17 +346,10 @@ export class IotCentralModule {
                 this.options.onModuleClientError(error);
             }
 
-            this.server.log(['IoTCentralModule', 'error'], `Module client connection error: ${error.message}`);
+            this.server.log([moduleName, 'error'], `Module client connection error: ${error.message}`);
         }
         catch (ex) {
-            this.server.log(['IoTCentralModule', 'error'], `Module client connection error: ${ex.message}`);
+            this.server.log([moduleName, 'error'], `Module client connection error: ${ex.message}`);
         }
-    }
-
-    @bind
-    private async onHandleModuleProperties(desiredChangedSettings: any) {
-        await this.options.onHandleModuleProperties(desiredChangedSettings);
-
-        this.deferredStart.resolve();
     }
 }

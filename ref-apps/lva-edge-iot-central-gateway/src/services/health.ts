@@ -1,6 +1,6 @@
 import { service, inject } from 'spryly';
 import { Server } from '@hapi/hapi';
-import { ModuleService } from './module';
+import { CameraGatewayService } from './cameraGateway';
 import { bind } from '../utils';
 
 export const healthCheckInterval = 15;
@@ -19,8 +19,8 @@ export class HealthService {
     @inject('$server')
     private server: Server;
 
-    @inject('module')
-    private module: ModuleService;
+    @inject('cameraGateway')
+    private cameraGateway: CameraGatewayService;
 
     // private heathCheckStartTime = Date.now();
     // private failingStreak = 1;
@@ -33,7 +33,7 @@ export class HealthService {
     public async checkHealthState(): Promise<number> {
         this.server.log(['HealthService', 'info'], 'Health check interval');
 
-        const moduleHealth = await this.module.getHealth();
+        const moduleHealth = await this.cameraGateway.getHealth();
 
         return moduleHealth;
     }

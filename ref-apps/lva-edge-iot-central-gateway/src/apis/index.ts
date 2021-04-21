@@ -1,7 +1,7 @@
 import { HealthRoutes } from './health';
-import { ModuleRoutes } from './module';
+import { CameraGatewayRoutes } from './cameraGateway';
 
 export default [
     HealthRoutes,
-    ModuleRoutes
+    CameraGatewayRoutes
 ];

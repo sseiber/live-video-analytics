@@ -1,10 +1,8 @@
-import {
-    ICameraDeviceProvisionInfo,
-    ModuleService
-} from './module';
+import { IIoTCentralModule } from '../plugins/iotCentral';
+import { ICameraDeviceProvisionInfo } from './cameraGateway';
 import { AmsGraph } from './amsGraph';
 import {
-    IoTDeviceInformation,
+    OnvifCameraInformationProps,
     OnvifCameraInterface,
     IoTCentralClientState,
     CameraState,
@@ -64,19 +62,19 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
 
     private detectionClasses: string[] = this.objectDetectorSettings[ObjectDetectorSettings.DetectionClasses].toUpperCase().split(',');
 
-    constructor(lvaGatewayModule: ModuleService, amsGraph: AmsGraph, cameraInfo: ICameraDeviceProvisionInfo) {
-        super(lvaGatewayModule, amsGraph, cameraInfo);
+    constructor(iotCentralModule: IIoTCentralModule, amsGraph: AmsGraph, cameraInfo: ICameraDeviceProvisionInfo) {
+        super(iotCentralModule, amsGraph, cameraInfo);
     }
 
     public setGraphParameters(): any {
         return {
             frameRate: this.objectDetectorSettings[ObjectDetectorSettings.InferenceFps],
-            assetName: `${this.lvaGatewayModule.getScopeId()}-${this.cameraInfo.cameraId}-${moment.utc().format('YYYYMMDD-HHmmss')}`
+            assetName: `${this.iotCentralModule.getAppConfig().scopeId}-${this.iotCentralModule.deviceId}-${this.cameraInfo.cameraId}-${moment.utc().format('YYYYMMDD-HHmmss')}`
         };
     }
 
     public async deviceReady(): Promise<void> {
-        this.lvaGatewayModule.logger([this.cameraInfo.cameraId, 'info'], `Device is ready`);
+        this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Device is ready`);
 
         await this.sendMeasurement({
             [OnvifCameraInterface.State.IoTCentralClientState]: IoTCentralClientState.Connected,
@@ -97,7 +95,7 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
 
     public async processLvaInferences(inferences: IObjectInference[]): Promise<void> {
         if (!Array.isArray(inferences) || !this.deviceClient) {
-            this.lvaGatewayModule.logger([this.cameraInfo.cameraId, 'error'], `Missing inferences array or client not connected`);
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `Missing inferences array or client not connected`);
             return;
         }
 
@@ -132,23 +130,55 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
             }
         }
         catch (ex) {
-            this.lvaGatewayModule.logger([this.cameraInfo.cameraId, 'error'], `Error processing downstream message: ${ex.message}`);
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `Error processing downstream message: ${ex.message}`);
         }
     }
 
-    public async getCameraProps(): Promise<IoTDeviceInformation> {
-        // TODO:
-        // Introduce some ONVIF tech to get camera props
-        return {
-            manufacturer: 'AAA',
-            model: '1000',
-            swVersion: 'v1.0.0',
-            osName: 'AAA OS',
-            processorArchitecture: 'AAA CPU',
-            processorManufacturer: 'AAA',
-            totalStorage: 0,
-            totalMemory: 0
-        };
+    public async getCameraProps(): Promise<OnvifCameraInformationProps> {
+        let cameraProps: OnvifCameraInformationProps;
+
+        try {
+            let deviceInfoResult = await this.iotCentralModule.invokeDirectMethod(
+                this.envConfig.onvifModuleId,
+                'GetDeviceInformation',
+                {
+                    Address: this.cameraInfo.ipAddress,
+                    Username: this.cameraInfo.onvifUsername,
+                    Password: this.cameraInfo.onvifPassword
+                });
+
+            cameraProps = {
+                rpManufacturer: deviceInfoResult.payload?.Manufacturer || '',
+                rpModel: deviceInfoResult.payload?.Model || '',
+                rpFirmwareVersion: deviceInfoResult.payload?.Firmware || '',
+                rpHardwareId: deviceInfoResult.payload?.HardwareId || '',
+                rpSerialNumber: deviceInfoResult.payload?.SerialNumber || ''
+            };
+
+            deviceInfoResult = await this.iotCentralModule.invokeDirectMethod(
+                this.envConfig.onvifModuleId,
+                'GetMediaProfileList',
+                {
+                    Address: this.cameraInfo.ipAddress,
+                    Username: this.cameraInfo.onvifUsername,
+                    Password: this.cameraInfo.onvifPassword
+                });
+
+            cameraProps.rpMediaProfile1 = {
+                mediaProfileName: deviceInfoResult.payload[0]?.MediaProfileName || '',
+                mediaProfileToken: deviceInfoResult.payload[0]?.MediaProfileToken || ''
+            };
+
+            cameraProps.rpMediaProfile2 = {
+                mediaProfileName: deviceInfoResult.payload[1]?.MediaProfileName || '',
+                mediaProfileToken: deviceInfoResult.payload[1]?.MediaProfileToken || ''
+            };
+        }
+        catch (ex) {
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `Error getting onvif device properties: ${ex.message}`);
+        }
+
+        return cameraProps;
     }
 
     @bind
@@ -157,7 +187,7 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
 
         try {
             if (this.lvaEdgeDiagnosticsSettings[LvaEdgeDiagnosticsSettings.DebugTelemetry] === true) {
-                this.lvaGatewayModule.logger([this.cameraInfo.cameraId, 'info'], `desiredPropsDelta:\n${JSON.stringify(desiredChangedSettings, null, 4)}`);
+                this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `desiredPropsDelta:\n${JSON.stringify(desiredChangedSettings, null, 4)}`);
             }
 
             const patchedProperties = {};
@@ -203,7 +233,7 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
             }
         }
         catch (ex) {
-            this.lvaGatewayModule.logger([this.cameraInfo.cameraId, 'error'], `Exception while handling desired properties: ${ex.message}`);
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `Exception while handling desired properties: ${ex.message}`);
         }
 
         this.deferredStart.resolve();

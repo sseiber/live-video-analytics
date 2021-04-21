@@ -29,7 +29,7 @@ To complete the steps in this tutorial, you need:
    * The `./configs` directory will include your working files:
      * `imageConfig.json` - defines the docker container image name
      * `state.json` - defines the properties read from the Edge device at runtime
-     * `./mediaGraphs` - a folder containing the media graph files that will be included into your docker container image. If you have any fixed instance variables you would set them here in the `objectGraphInstance.json` or the `motionGraphInstance.json` file. An example would be the `inferencingUrl` variable used to call the Yolov3 module.
+     * `./mediaPipelines` - a folder containing the media graph files that will be included into your docker container image. If you have any fixed instance variables you would set them here in the `objectPipelineInstance.json` or the `motionPipelineInstance.json` file. An example would be the `inferencingUrl` variable used to call the Yolov3 module.
      * `./deploymentManifests` - a folder containing the Edge deployment manifest files for various cpu architectures and deployment configurations.
 
 1. Edit the *./setup/imageConfig.json* file to update the image named based on your container registry name:
@@ -42,8 +42,8 @@ To complete the steps in this tutorial, you need:
     ```
 
 ### Add Inference Endpoint for Custom Inference Service
-In order to bring up your own custom inference service, you need to include the inference URL in *objectGraphInstance.json*. Please follow below instructions to add value of inference URL.
-1. In VS Code, open *./configs/mediaGraphs/objectGraphInstance.json* file.
+In order to bring up your own custom inference service, you need to include the inference URL in *objectPipelineInstance.json*. Please follow below instructions to add value of inference URL.
+1. In VS Code, open *./configs/mediaPipelines/objectPipelineInstance.json* file.
 2. Edit the `inferencingUrl` parameter section to add value of `inference URL`(Line no.26). Below are the list of available inference endpoint values for LVA.
 
 **OpenVINO™ Model Server**

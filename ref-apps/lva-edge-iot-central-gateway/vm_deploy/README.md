@@ -29,7 +29,7 @@ az deployment group create \
   --parameters scopeId="<IOT_CENTRAL_APP_SCOPE_ID>" \
   --parameters deviceId="<IOT_CENTRAL_DEVICE_ID>" \
   --parameters deviceKey="<IOT_CENTRAL_DEVICE_KEY" \
-  --parameters iotCentralAppHost="<IOT_CENTRAL_APP_SUBDOMAIN_AND_DNS_HOST>" \
-  --parameters iotCentralAppApiToken="<IOT_CENTRAL_APP_API_TOKEN>" \
-  --parameters iotCentralDeviceProvisioningKey="<IOT_CENTRAL_DEVICE_PROVISIONING_KEY>"
+  --parameters iotcAppHost="<IOT_CENTRAL_APP_SUBDOMAIN_AND_DNS_HOST>" \
+  --parameters iotcApiToken="<IOT_CENTRAL_APP_API_TOKEN>" \
+  --parameters iotcDeviceKey="<IOT_CENTRAL_DEVICE_PROVISIONING_KEY>"
 ```

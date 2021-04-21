@@ -24,10 +24,11 @@ export class CameraGatewayPlugin implements HapiPlugin {
             await server.register({
                 plugin: iotCentralModulePlugin,
                 options: {
-                    getAppKeys: this.cameraGateway.getAppKeys.bind(this.cameraGateway),
+                    getAppConfig: this.cameraGateway.getAppConfig.bind(this.cameraGateway),
                     debugTelemetry: this.cameraGateway.debugTelemetry.bind(this.cameraGateway),
                     onHandleModuleProperties: this.cameraGateway.onHandleModuleProperties.bind(this.cameraGateway),
                     onModuleClientError: this.cameraGateway.onModuleClientError.bind(this.cameraGateway),
+                    onHandleDownstreamMessages: this.cameraGateway.onHandleDownstreamMessages.bind(this.cameraGateway),
                     onModuleReady: this.cameraGateway.onModuleReady.bind(this.cameraGateway)
                 }
             });

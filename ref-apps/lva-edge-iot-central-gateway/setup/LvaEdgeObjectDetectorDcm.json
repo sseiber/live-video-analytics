@@ -495,9 +495,9 @@
                     "Event"
                 ],
                 "displayName": {
-                    "en": "Graph Instance Created"
+                    "en": "Pipeline Instance Created"
                 },
-                "name": "evGraphInstanceCreated",
+                "name": "evPipelineInstanceCreated",
                 "schema": "string"
             },
             {
@@ -506,9 +506,9 @@
                     "Event"
                 ],
                 "displayName": {
-                    "en": "Graph Instance Deleted"
+                    "en": "Pipeline Instance Deleted"
                 },
-                "name": "evGraphInstanceDeleted",
+                "name": "evPipelineInstanceDeleted",
                 "schema": "string"
             },
             {
@@ -517,9 +517,9 @@
                     "Event"
                 ],
                 "displayName": {
-                    "en": "Graph Instance Started"
+                    "en": "Pipeline Instance Started"
                 },
-                "name": "evGraphInstanceStarted",
+                "name": "evPipelineInstanceStarted",
                 "schema": "string"
             },
             {
@@ -528,9 +528,9 @@
                     "Event"
                 ],
                 "displayName": {
-                    "en": "Graph Instance Stopped"
+                    "en": "Pipeline Instance Stopped"
                 },
-                "name": "evGraphInstanceStopped",
+                "name": "evPipelineInstanceStopped",
                 "schema": "string"
             },
             {
