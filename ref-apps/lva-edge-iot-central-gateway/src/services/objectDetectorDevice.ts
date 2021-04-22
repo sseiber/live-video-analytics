@@ -2,13 +2,9 @@ import { IIoTCentralModule } from '../plugins/iotCentral';
 import { ICameraDeviceProvisionInfo } from './cameraGateway';
 import { AmsGraph } from './amsGraph';
 import {
-    OnvifCameraInformationProps,
-    OnvifCameraInterface,
-    IoTCentralClientState,
-    CameraState,
-    AiInferenceInterface,
-    AmsCameraDevice,
-    LvaEdgeDiagnosticsSettings
+    OnvifCameraCapability,
+    AiInferenceCapability,
+    AmsCameraDevice
 } from './device';
 import * as moment from 'moment';
 import { bind, emptyObj } from '../utils';
@@ -33,34 +29,26 @@ const defaultDetectionClass = 'person';
 const defaultConfidenceThreshold = 70.0;
 const defaultInferenceFps = 2;
 
-enum ObjectDetectorSettings {
-    DetectionClasses = 'wpDetectionClasses',
-    ConfidenceThreshold = 'wpConfidenceThreshold',
-    InferenceFps = 'wpInferenceFps'
+enum ObjectDetectorCapability {
+    wpDetectionClasses = 'wpDetectionClasses',
+    wpConfidenceThreshold = 'wpConfidenceThreshold',
+    wpInferenceFps = 'wpInferenceFps'
 }
 
 interface IObjectDetectorSettings {
-    [ObjectDetectorSettings.DetectionClasses]: string;
-    [ObjectDetectorSettings.ConfidenceThreshold]: number;
-    [ObjectDetectorSettings.InferenceFps]: number;
+    [ObjectDetectorCapability.wpDetectionClasses]: string;
+    [ObjectDetectorCapability.wpConfidenceThreshold]: number;
+    [ObjectDetectorCapability.wpInferenceFps]: number;
 }
-
-const ObjectDetectorInterface = {
-    Setting: {
-        DetectionClasses: ObjectDetectorSettings.DetectionClasses,
-        ConfidenceThreshold: ObjectDetectorSettings.ConfidenceThreshold,
-        InferenceFps: ObjectDetectorSettings.InferenceFps
-    }
-};
 
 export class AmsObjectDetectorDevice extends AmsCameraDevice {
     private objectDetectorSettings: IObjectDetectorSettings = {
-        [ObjectDetectorSettings.DetectionClasses]: defaultDetectionClass,
-        [ObjectDetectorSettings.ConfidenceThreshold]: defaultConfidenceThreshold,
-        [ObjectDetectorSettings.InferenceFps]: defaultInferenceFps
+        [ObjectDetectorCapability.wpDetectionClasses]: defaultDetectionClass,
+        [ObjectDetectorCapability.wpConfidenceThreshold]: defaultConfidenceThreshold,
+        [ObjectDetectorCapability.wpInferenceFps]: defaultInferenceFps
     };
 
-    private detectionClasses: string[] = this.objectDetectorSettings[ObjectDetectorSettings.DetectionClasses].toUpperCase().split(',');
+    private detectionClasses: string[] = this.objectDetectorSettings[ObjectDetectorCapability.wpDetectionClasses].toUpperCase().split(',');
 
     constructor(iotCentralModule: IIoTCentralModule, amsGraph: AmsGraph, cameraInfo: ICameraDeviceProvisionInfo) {
         super(iotCentralModule, amsGraph, cameraInfo);
@@ -68,7 +56,7 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
 
     public setGraphParameters(): any {
         return {
-            frameRate: this.objectDetectorSettings[ObjectDetectorSettings.InferenceFps],
+            frameRate: this.objectDetectorSettings[ObjectDetectorCapability.wpInferenceFps],
             assetName: `${this.iotCentralModule.getAppConfig().scopeId}-${this.iotCentralModule.deviceId}-${this.cameraInfo.cameraId}-${moment.utc().format('YYYYMMDD-HHmmss')}`
         };
     }
@@ -76,20 +64,15 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
     public async deviceReady(): Promise<void> {
         this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Device is ready`);
 
-        await this.sendMeasurement({
-            [OnvifCameraInterface.State.IoTCentralClientState]: IoTCentralClientState.Connected,
-            [OnvifCameraInterface.State.CameraState]: CameraState.Inactive
-        });
-
         const cameraProps = await this.getCameraProps();
 
         await this.updateDeviceProperties({
             ...cameraProps,
-            [OnvifCameraInterface.Property.CameraName]: this.cameraInfo.cameraName,
-            [OnvifCameraInterface.Property.IpAddress]: this.cameraInfo.ipAddress,
-            [OnvifCameraInterface.Property.OnvifUsername]: this.cameraInfo.onvifUsername,
-            [OnvifCameraInterface.Property.OnvifPassword]: this.cameraInfo.onvifPassword,
-            [AiInferenceInterface.Property.InferenceImageUrl]: ''
+            [OnvifCameraCapability.rpCameraName]: this.cameraInfo.cameraName,
+            [OnvifCameraCapability.rpIpAddress]: this.cameraInfo.ipAddress,
+            [OnvifCameraCapability.rpOnvifUsername]: this.cameraInfo.onvifUsername,
+            [OnvifCameraCapability.rpOnvifPassword]: this.cameraInfo.onvifPassword,
+            [AiInferenceCapability.rpInferenceImageUrl]: ''
         });
     }
 
@@ -107,12 +90,12 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
                 const detectedClass = (inference.entity?.tag?.value || '').toUpperCase();
                 const confidence = (inference.entity?.tag?.confidence || 0.0) * 100;
 
-                if (this.detectionClasses.includes(detectedClass) && confidence >= this.objectDetectorSettings[ObjectDetectorSettings.ConfidenceThreshold]) {
+                if (this.detectionClasses.includes(detectedClass) && confidence >= this.objectDetectorSettings[ObjectDetectorCapability.wpConfidenceThreshold]) {
                     ++detectionCount;
                     sampleImageUrl = '';
 
                     await this.sendMeasurement({
-                        [AiInferenceInterface.Telemetry.Inference]: inference
+                        [AiInferenceCapability.tlInference]: inference
                     });
                 }
             }
@@ -121,11 +104,11 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
                 this.lastInferenceTime = moment.utc();
 
                 await this.sendMeasurement({
-                    [AiInferenceInterface.Telemetry.InferenceCount]: detectionCount
+                    [AiInferenceCapability.tlInferenceCount]: detectionCount
                 });
 
                 await this.updateDeviceProperties({
-                    [AiInferenceInterface.Property.InferenceImageUrl]: sampleImageUrl
+                    [AiInferenceCapability.rpInferenceImageUrl]: sampleImageUrl
                 });
             }
         }
@@ -134,59 +117,14 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
         }
     }
 
-    public async getCameraProps(): Promise<OnvifCameraInformationProps> {
-        let cameraProps: OnvifCameraInformationProps;
-
-        try {
-            let deviceInfoResult = await this.iotCentralModule.invokeDirectMethod(
-                this.envConfig.onvifModuleId,
-                'GetDeviceInformation',
-                {
-                    Address: this.cameraInfo.ipAddress,
-                    Username: this.cameraInfo.onvifUsername,
-                    Password: this.cameraInfo.onvifPassword
-                });
-
-            cameraProps = {
-                rpManufacturer: deviceInfoResult.payload?.Manufacturer || '',
-                rpModel: deviceInfoResult.payload?.Model || '',
-                rpFirmwareVersion: deviceInfoResult.payload?.Firmware || '',
-                rpHardwareId: deviceInfoResult.payload?.HardwareId || '',
-                rpSerialNumber: deviceInfoResult.payload?.SerialNumber || ''
-            };
-
-            deviceInfoResult = await this.iotCentralModule.invokeDirectMethod(
-                this.envConfig.onvifModuleId,
-                'GetMediaProfileList',
-                {
-                    Address: this.cameraInfo.ipAddress,
-                    Username: this.cameraInfo.onvifUsername,
-                    Password: this.cameraInfo.onvifPassword
-                });
-
-            cameraProps.rpMediaProfile1 = {
-                mediaProfileName: deviceInfoResult.payload[0]?.MediaProfileName || '',
-                mediaProfileToken: deviceInfoResult.payload[0]?.MediaProfileToken || ''
-            };
-
-            cameraProps.rpMediaProfile2 = {
-                mediaProfileName: deviceInfoResult.payload[1]?.MediaProfileName || '',
-                mediaProfileToken: deviceInfoResult.payload[1]?.MediaProfileToken || ''
-            };
-        }
-        catch (ex) {
-            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `Error getting onvif device properties: ${ex.message}`);
-        }
-
-        return cameraProps;
-    }
-
     @bind
     protected async onHandleDeviceProperties(desiredChangedSettings: any): Promise<void> {
-        await super.onHandleDevicePropertiesInternal(desiredChangedSettings);
+        this.iotCentralModule.logger([this.cameraInfo.cameraId, '#####'], `onHandleDeviceProperties DERIVED`);
+        await super.onHandleDeviceProperties(desiredChangedSettings);
+        // await super.onHandleDevicePropertiesInternal(desiredChangedSettings);
 
         try {
-            if (this.lvaEdgeDiagnosticsSettings[LvaEdgeDiagnosticsSettings.DebugTelemetry] === true) {
+            if (this.debugTelemetry()) {
                 this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `desiredPropsDelta:\n${JSON.stringify(desiredChangedSettings, null, 4)}`);
             }
 
@@ -206,7 +144,7 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
                     : desiredChangedSettings[setting];
 
                 switch (setting) {
-                    case ObjectDetectorInterface.Setting.DetectionClasses: {
+                    case ObjectDetectorCapability.wpDetectionClasses: {
                         const detectionClassesString = (value || '');
 
                         this.detectionClasses = detectionClassesString.toUpperCase().split(',');
@@ -215,11 +153,11 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
                         break;
                     }
 
-                    case ObjectDetectorInterface.Setting.ConfidenceThreshold:
+                    case ObjectDetectorCapability.wpConfidenceThreshold:
                         patchedProperties[setting] = (this.objectDetectorSettings[setting] as any) = value || defaultConfidenceThreshold;
                         break;
 
-                    case ObjectDetectorInterface.Setting.InferenceFps:
+                    case ObjectDetectorCapability.wpInferenceFps:
                         patchedProperties[setting] = (this.objectDetectorSettings[setting] as any) = value || defaultInferenceFps;
                         break;
 

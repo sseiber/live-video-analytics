@@ -242,7 +242,29 @@
                 },
                 "name": "wpOnvifMediaProfile",
                 "writable": true,
-                "schema": "string"
+                "schema": {
+                    "@type": "Enum",
+                    "displayName": {
+                        "en": "Enum"
+                    },
+                    "valueSchema": "string",
+                    "enumValues": [
+                        {
+                            "displayName": {
+                                "en": "Media Profile 1"
+                            },
+                            "enumValue": "mediaprofile1",
+                            "name": "MediaProfileEnum_1"
+                        },
+                        {
+                            "displayName": {
+                                "en": "Media Profile 2"
+                            },
+                            "enumValue": "mediaprofile2",
+                            "name": "MediaProfileEnum_2"
+                        }
+                    ]
+                }
             },
             {
                 "@type": "Command",

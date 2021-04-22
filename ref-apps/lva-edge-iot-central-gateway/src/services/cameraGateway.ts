@@ -3,7 +3,7 @@ import { Server } from '@hapi/hapi';
 import { StorageService } from './storage';
 import { HealthState } from './health';
 import { AmsGraph } from './amsGraph';
-import { AmsCameraDevice, OnvifCameraInterface } from './device';
+import { AmsCameraDevice, OnvifCameraCapability } from './device';
 import { AmsMotionDetectorDevice } from './motionDetectorDevice';
 import { AmsObjectDetectorDevice } from './objectDetectorDevice';
 import { SymmetricKeySecurityClient } from 'azure-iot-security-symmetric-key';
@@ -94,7 +94,7 @@ interface ISystemProperties {
     freeMemory: number;
 }
 
-enum IotcEdgeHostProperties {
+enum IotcEdgeHostDevicePropNames {
     Manufacturer = 'manufacturer',
     Model = 'model',
     SwVersion = 'swVersion',
@@ -103,16 +103,6 @@ enum IotcEdgeHostProperties {
     ProcessorManufacturer = 'processorManufacturer',
     TotalStorage = 'totalStorage',
     TotalMemory = 'totalMemory'
-}
-
-enum LvaGatewaySettings {
-    DebugTelemetry = 'wpDebugTelemetry',
-    DebugRoutedMessage = 'wpDebugRoutedMessage'
-}
-
-interface ILvaGatewaySettings {
-    [LvaGatewaySettings.DebugTelemetry]: boolean;
-    [LvaGatewaySettings.DebugRoutedMessage]: boolean;
 }
 
 enum IoTCentralClientState {
@@ -165,33 +155,28 @@ enum CommandResponseParams {
     Data = 'CommandResponseParams_Data'
 }
 
-const LvaGatewayInterface = {
-    Telemetry: {
-        SystemHeartbeat: 'tlSystemHeartbeat',
-        FreeMemory: 'tlFreeMemory',
-        ConnectedCameras: 'tlConnectedCameras'
-    },
-    State: {
-        IoTCentralClientState: 'stIoTCentralClientState',
-        ModuleState: 'stModuleState'
-    },
-    Event: {
-        CreateCamera: 'evCreateCamera',
-        DeleteCamera: 'evDeleteCamera',
-        ModuleStarted: 'evModuleStarted',
-        ModuleStopped: 'evModuleStopped',
-        ModuleRestart: 'evModuleRestart'
-    },
-    Setting: {
-        DebugTelemetry: LvaGatewaySettings.DebugTelemetry,
-        DebugRoutedMessage: LvaGatewaySettings.DebugRoutedMessage
-    },
-    Command: {
-        AddCamera: 'cmAddCamera',
-        DeleteCamera: 'cmDeleteCamera',
-        RestartModule: 'cmRestartModule'
-    }
-};
+enum LvaGatewayCapability {
+    tlSystemHeartbeat = 'tlSystemHeartbeat',
+    tlFreeMemory = 'tlFreeMemory',
+    tlConnectedCameras = 'tlConnectedCameras',
+    stIoTCentralClientState = 'stIoTCentralClientState',
+    stModuleState = 'stModuleState',
+    evCreateCamera = 'evCreateCamera',
+    evDeleteCamera = 'evDeleteCamera',
+    evModuleStarted = 'evModuleStarted',
+    evModuleStopped = 'evModuleStopped',
+    evModuleRestart = 'evModuleRestart',
+    wpDebugTelemetry = 'wpDebugTelemetry',
+    wpDebugRoutedMessage = 'wpDebugRoutedMessage',
+    cmAddCamera = 'cmAddCamera',
+    cmDeleteCamera = 'cmDeleteCamera',
+    cmRestartModule = 'cmRestartModule'
+}
+
+interface ILvaGatewaySettings {
+    [LvaGatewayCapability.wpDebugTelemetry]: boolean;
+    [LvaGatewayCapability.wpDebugRoutedMessage]: boolean;
+}
 
 const LvaGatewayEdgeInputs = {
     CameraCommand: 'cameracommand',
@@ -222,8 +207,8 @@ export class CameraGatewayService {
     private healthState = HealthState.Good;
     private healthCheckFailStreak = 0;
     private moduleSettings: ILvaGatewaySettings = {
-        [LvaGatewaySettings.DebugTelemetry]: false,
-        [LvaGatewaySettings.DebugRoutedMessage]: false
+        [LvaGatewayCapability.wpDebugTelemetry]: false,
+        [LvaGatewayCapability.wpDebugRoutedMessage]: false
     };
     private appConfig: IAppConfig = {
         system: {
@@ -262,7 +247,7 @@ export class CameraGatewayService {
 
     @bind
     public debugTelemetry(): boolean {
-        return this.moduleSettings[LvaGatewaySettings.DebugTelemetry];
+        return this.moduleSettings[LvaGatewayCapability.wpDebugTelemetry];
     }
 
     @bind
@@ -287,8 +272,8 @@ export class CameraGatewayService {
                 const value = desiredChangedSettings[setting];
 
                 switch (setting) {
-                    case LvaGatewayInterface.Setting.DebugTelemetry:
-                    case LvaGatewayInterface.Setting.DebugRoutedMessage:
+                    case LvaGatewayCapability.wpDebugTelemetry:
+                    case LvaGatewayCapability.wpDebugRoutedMessage:
                         patchedProperties[setting] = this.moduleSettings[setting] = value || false;
                         break;
 
@@ -316,7 +301,7 @@ export class CameraGatewayService {
     @bind
     public async onHandleDownstreamMessages(inputName: string, message: IoTMessage): Promise<void> {
         try {
-            if (inputName === LvaGatewayEdgeInputs.LvaDiagnostics && this.moduleSettings[LvaGatewaySettings.DebugTelemetry] === false) {
+            if (inputName === LvaGatewayEdgeInputs.LvaDiagnostics && !this.debugTelemetry()) {
                 return;
             }
 
@@ -327,7 +312,7 @@ export class CameraGatewayService {
 
             const messageJson = JSON.parse(messageData);
 
-            if (this.moduleSettings[LvaGatewaySettings.DebugRoutedMessage] === true) {
+            if (this.moduleSettings[LvaGatewayCapability.wpDebugRoutedMessage] === true) {
                 if (message.properties?.propertyList) {
                     this.server.log([moduleName, 'info'], `Routed message properties: ${JSON.stringify(message.properties?.propertyList, null, 4)}`);
                 }
@@ -429,22 +414,22 @@ export class CameraGatewayService {
             }
         };
 
-        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayInterface.Command.AddCamera, this.addCameraDirectMethod);
-        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayInterface.Command.DeleteCamera, this.deleteCameraDirectMethod);
-        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayInterface.Command.RestartModule, this.restartModuleDirectMethod);
+        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayCapability.cmAddCamera, this.addCameraDirectMethod);
+        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayCapability.cmDeleteCamera, this.deleteCameraDirectMethod);
+        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayCapability.cmRestartModule, this.restartModuleDirectMethod);
 
         await this.server.settings.app.iotCentralModule.updateModuleProperties({
             ...this.appConfig.device,
-            [IotcEdgeHostProperties.OsName]: osPlatform() || '',
-            [IotcEdgeHostProperties.SwVersion]: osRelease() || '',
-            [IotcEdgeHostProperties.ProcessorArchitecture]: osArch() || '',
-            [IotcEdgeHostProperties.TotalMemory]: systemProperties.totalMemory
+            [IotcEdgeHostDevicePropNames.OsName]: osPlatform() || '',
+            [IotcEdgeHostDevicePropNames.SwVersion]: osRelease() || '',
+            [IotcEdgeHostDevicePropNames.ProcessorArchitecture]: osArch() || '',
+            [IotcEdgeHostDevicePropNames.TotalMemory]: systemProperties.totalMemory
         });
 
         await this.server.settings.app.iotCentralModule.sendMeasurement({
-            [LvaGatewayInterface.State.IoTCentralClientState]: IoTCentralClientState.Connected,
-            [LvaGatewayInterface.State.ModuleState]: ModuleState.Active,
-            [LvaGatewayInterface.Event.ModuleStarted]: 'Module initialization'
+            [LvaGatewayCapability.stIoTCentralClientState]: IoTCentralClientState.Connected,
+            [LvaGatewayCapability.stModuleState]: ModuleState.Active,
+            [LvaGatewayCapability.evModuleStarted]: 'Module initialization'
         }, iotcOutput);
 
         await this.recreateExistingDevices();
@@ -476,8 +461,8 @@ export class CameraGatewayService {
                 const systemProperties = await this.getSystemProperties();
                 const freeMemory = systemProperties?.freeMemory || 0;
 
-                healthTelemetry[LvaGatewayInterface.Telemetry.FreeMemory] = freeMemory;
-                healthTelemetry[LvaGatewayInterface.Telemetry.ConnectedCameras] = this.amsInferenceDeviceMap.size;
+                healthTelemetry[LvaGatewayCapability.tlFreeMemory] = freeMemory;
+                healthTelemetry[LvaGatewayCapability.tlConnectedCameras] = this.amsInferenceDeviceMap.size;
 
                 // TODO:
                 // Find the right threshold for this metric
@@ -485,7 +470,7 @@ export class CameraGatewayService {
                     healthState = HealthState.Critical;
                 }
 
-                healthTelemetry[LvaGatewayInterface.Telemetry.SystemHeartbeat] = healthState;
+                healthTelemetry[LvaGatewayCapability.tlSystemHeartbeat] = healthState;
 
                 await this.server.settings.app.iotCentralModule.sendMeasurement(healthTelemetry, iotcOutput);
             }
@@ -519,9 +504,9 @@ export class CameraGatewayService {
 
         try {
             await this.server.settings.app.iotCentralModule.sendMeasurement({
-                [LvaGatewayInterface.Event.ModuleRestart]: reason,
-                [LvaGatewayInterface.State.ModuleState]: ModuleState.Inactive,
-                [LvaGatewayInterface.Event.ModuleStopped]: 'Module restart'
+                [LvaGatewayCapability.evModuleRestart]: reason,
+                [LvaGatewayCapability.stModuleState]: ModuleState.Inactive,
+                [LvaGatewayCapability.evModuleStopped]: 'Module restart'
             }, iotcOutput);
 
             if (timeout > 0) {
@@ -586,10 +571,10 @@ export class CameraGatewayService {
 
             return {
                 cameraId: deviceId,
-                cameraName: devicePropertiesResponse[OnvifCameraInterface.Property.CameraName],
-                ipAddress: devicePropertiesResponse[OnvifCameraInterface.Property.IpAddress],
-                onvifUsername: devicePropertiesResponse[OnvifCameraInterface.Property.OnvifUsername],
-                onvifPassword: devicePropertiesResponse[OnvifCameraInterface.Property.OnvifPassword],
+                cameraName: devicePropertiesResponse[OnvifCameraCapability.rpCameraName],
+                ipAddress: devicePropertiesResponse[OnvifCameraCapability.rpIpAddress],
+                onvifUsername: devicePropertiesResponse[OnvifCameraCapability.rpOnvifUsername],
+                onvifPassword: devicePropertiesResponse[OnvifCameraCapability.rpOnvifPassword],
                 detectionType: devicePropertiesResponse[LvaCameraDeviceTypeMap[AddCameraDetectionType.Object].templateId]
                     ? AddCameraDetectionType.Object
                     : AddCameraDetectionType.Motion
@@ -686,7 +671,7 @@ export class CameraGatewayService {
                 this.amsInferenceDeviceMap.set(cameraInfo.cameraId, deviceProvisionResult.amsInferenceDevice);
 
                 await this.server.settings.app.iotCentralModule.sendMeasurement({
-                    [LvaGatewayInterface.Event.CreateCamera]: cameraInfo.cameraId
+                    [LvaGatewayCapability.evCreateCamera]: cameraInfo.cameraId
                 }, iotcOutput);
 
                 this.server.log([moduleName, 'info'], `Succesfully provisioned camera device with id: ${cameraInfo.cameraId}`);
@@ -804,7 +789,7 @@ export class CameraGatewayService {
                     });
 
                 await this.server.settings.app.iotCentralModule.sendMeasurement({
-                    [LvaGatewayInterface.Event.DeleteCamera]: cameraId
+                    [LvaGatewayCapability.evDeleteCamera]: cameraId
                 }, iotcOutput);
 
                 this.server.log([moduleName, 'info'], `Succesfully de-provisioned camera device with id: ${cameraId}`);
@@ -887,7 +872,7 @@ export class CameraGatewayService {
 
     @bind
     private async addCameraDirectMethod(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
-        this.server.log([moduleName, 'info'], `${LvaGatewayInterface.Command.AddCamera} command received`);
+        this.server.log([moduleName, 'info'], `${LvaGatewayCapability.cmAddCamera} command received`);
 
         const addCameraResponse = {
             [CommandResponseParams.StatusCode]: 200,
@@ -936,7 +921,7 @@ export class CameraGatewayService {
 
     @bind
     private async deleteCameraDirectMethod(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
-        this.server.log([moduleName, 'info'], `${LvaGatewayInterface.Command.DeleteCamera} command received`);
+        this.server.log([moduleName, 'info'], `${LvaGatewayCapability.cmDeleteCamera} command received`);
 
         const deleteCameraResponse = {
             [CommandResponseParams.StatusCode]: 200,
@@ -979,7 +964,7 @@ export class CameraGatewayService {
 
     @bind
     private async restartModuleDirectMethod(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
-        this.server.log([moduleName, 'info'], `${LvaGatewayInterface.Command.RestartModule} command received`);
+        this.server.log([moduleName, 'info'], `${LvaGatewayCapability.cmRestartModule} command received`);
 
         try {
             // sending response before processing, since this is a restart request
@@ -992,7 +977,7 @@ export class CameraGatewayService {
             await this.restartModule(commandRequest?.payload?.[RestartModuleCommandRequestParams.Timeout] || 0, 'RestartModule command received');
         }
         catch (ex) {
-            this.server.log([moduleName, 'error'], `Error sending response for ${LvaGatewayInterface.Command.RestartModule} command: ${ex.message}`);
+            this.server.log([moduleName, 'error'], `Error sending response for ${LvaGatewayCapability.cmRestartModule} command: ${ex.message}`);
 
             await commandResponse.send(200, {
                 [CommandResponseParams.StatusCode]: 500,
