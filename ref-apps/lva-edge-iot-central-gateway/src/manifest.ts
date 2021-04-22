@@ -21,7 +21,7 @@ export function manifest(config?: any): ComposeManifest {
             app: {
                 rootDirectory: pathResolve(__dirname, '..'),
                 storageRootDirectory: process.env.DATAMISC_ROOT || '/data/storage',
-                slogan: 'LVA Edge Gateway Module'
+                slogan: 'AVA Edge Gateway Module'
             }
         },
         services: [

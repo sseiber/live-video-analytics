@@ -46,7 +46,7 @@ runcmd:
         sudo mkdir -p /data/storage
         sudo chmod -R 777 /data
         set 
-        echo "{\n    \"system\": {\n        \"systemName\": \"lva-edge-gateway\",\n        \"systemId\": \"4513e8f2-c639-4143-a2a8-52ff2904217a\"\n    },\n    \"iotCentral\": {\n        \"properties\": {\n            \"manufacturer\": \"Microsoft\",\n            \"model\": \"', variables('model'), '\",\n            \"processorManufacturer\": \"Azure\",\n            \"totalStorage\": 30000000\n        },\n        \"appKeys\": {\n            \"iotcAppHost\": \"', variables('iotah'), '\",\n            \"iotcApiToken\": \"', variables('iotat'), '\",\n            \"iotcDeviceKey\": \"', variables('iotpk'), '\",\n            \"iotcScopeId\": \"', variables('sid'), '\"\n        }\n    }\n}" > /data/storage/state.json
+        echo "{\n    \"system\": {\n        \"systemName\": \"ava-edge-gateway\",\n        \"systemId\": \"4513e8f2-c639-4143-a2a8-52ff2904217a\"\n    },\n    \"iotCentral\": {\n        \"properties\": {\n            \"manufacturer\": \"Microsoft\",\n            \"model\": \"', variables('model'), '\",\n            \"processorManufacturer\": \"Azure\",\n            \"totalStorage\": 30000000\n        },\n        \"appKeys\": {\n            \"iotcAppHost\": \"', variables('iotah'), '\",\n            \"iotcApiToken\": \"', variables('iotat'), '\",\n            \"iotcDeviceKey\": \"', variables('iotpk'), '\",\n            \"iotcScopeId\": \"', variables('sid'), '\"\n        }\n    }\n}" > /data/storage/state.json
         systemctl unmask iotedge
         systemctl start iotedge
       ) &

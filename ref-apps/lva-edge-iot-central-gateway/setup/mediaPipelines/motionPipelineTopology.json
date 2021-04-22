@@ -1,8 +1,8 @@
 {
     "@apiVersion": "2.0",
-    "name": "LvaIotcMotionDetectionWithCvr",
+    "name": "AvaIotcMotionDetectionWithCvr",
     "properties": {
-        "description": "Motion detection graph with cloud recording",
+        "description": "Motion detection pipeline with cloud recording",
         "parameters": [
             {
                 "name": "rtspUrl",
@@ -37,7 +37,7 @@
                 "name": "hubSinkOutputName",
                 "type": "String",
                 "description": "hub sink output name",
-                "default": "lvaTelemetry"
+                "default": "avaTelemetry"
             }
         ],
         "sources": [

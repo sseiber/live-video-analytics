@@ -1,6 +1,6 @@
 {
     "@apiVersion": "2.0",
-    "name": "LvaIotcObjectDetection",
+    "name": "AvaIotcObjectDetection",
     "properties": {
         "description": "Event-based video recording to Assets based on motion events, and using HTTP Extension to send images to an external inference engine",
         "parameters": [
@@ -53,20 +53,20 @@
             {
                 "name": "frameWidth",
                 "type": "String",
-                "description": "Width of the video frame to be received from LVA.",
+                "description": "Width of the video frame to be received from AVA.",
                 "default": "416"
             },
             {
                 "name": "frameHeight",
                 "type": "String",
-                "description": "Height of the video frame to be received from LVA.",
+                "description": "Height of the video frame to be received from AVA.",
                 "default": "416"
             },
             {
                 "name": "hubSinkOutputName",
                 "type": "String",
                 "description": "hub sink output name",
-                "default": "lvaTelemetry"
+                "default": "avaTelemetry"
             }
         ],
         "sources": [

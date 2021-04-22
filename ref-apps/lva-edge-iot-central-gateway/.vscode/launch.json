@@ -7,7 +7,7 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "LVA IoTC Local Debug",
+            "name": "AVA IoTC Local Debug",
             "console": "integratedTerminal",
             "program": "${workspaceFolder}/src/index.ts",
             "protocol": "inspector",
@@ -32,7 +32,7 @@
             }
         },
         {
-            "name": "LVA IoTC Remote Debug",
+            "name": "AVA IoTC Remote Debug",
             "type": "node",
             "request": "attach",
             "port": 9229,

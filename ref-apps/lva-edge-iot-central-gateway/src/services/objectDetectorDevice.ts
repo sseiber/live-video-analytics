@@ -1,6 +1,6 @@
 import { IIoTCentralModule } from '../plugins/iotCentral';
 import { ICameraDeviceProvisionInfo } from './cameraGateway';
-import { AmsGraph } from './amsGraph';
+import { AvaPipeline } from './avaPipeline';
 import {
     OnvifCameraCapability,
     AiInferenceCapability,
@@ -50,11 +50,11 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
 
     private detectionClasses: string[] = this.objectDetectorSettings[ObjectDetectorCapability.wpDetectionClasses].toUpperCase().split(',');
 
-    constructor(iotCentralModule: IIoTCentralModule, amsGraph: AmsGraph, cameraInfo: ICameraDeviceProvisionInfo) {
-        super(iotCentralModule, amsGraph, cameraInfo);
+    constructor(iotCentralModule: IIoTCentralModule, avaPipeline: AvaPipeline, cameraInfo: ICameraDeviceProvisionInfo) {
+        super(iotCentralModule, avaPipeline, cameraInfo);
     }
 
-    public setGraphParameters(): any {
+    public setPipelineParams(): any {
         return {
             frameRate: this.objectDetectorSettings[ObjectDetectorCapability.wpInferenceFps],
             assetName: `${this.iotCentralModule.getAppConfig().scopeId}-${this.iotCentralModule.deviceId}-${this.cameraInfo.cameraId}-${moment.utc().format('YYYYMMDD-HHmmss')}`
@@ -76,7 +76,7 @@ export class AmsObjectDetectorDevice extends AmsCameraDevice {
         });
     }
 
-    public async processLvaInferences(inferences: IObjectInference[]): Promise<void> {
+    public async processAvaInferences(inferences: IObjectInference[]): Promise<void> {
         if (!Array.isArray(inferences) || !this.deviceClient) {
             this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `Missing inferences array or client not connected`);
             return;

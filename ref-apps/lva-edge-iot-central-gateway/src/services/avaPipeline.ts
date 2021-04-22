@@ -8,39 +8,39 @@ import * as fse from 'fs-extra';
 import { resolve as pathResolve } from 'path';
 import * as moment from 'moment';
 
-const moduleName = 'AmsGraph';
+const moduleName = 'AvaPipeline';
 const contentRootDirectory = process.env.CONTENT_ROOT || '/data/content';
 
-export class AmsGraph {
-    public static async createAmsGraph(iotCentralModule: IIoTCentralModule, cameraInfo: ICameraDeviceProvisionInfo): Promise<AmsGraph> {
+export class AvaPipeline {
+    public static async createAvaPipeline(iotCentralModule: IIoTCentralModule, cameraInfo: ICameraDeviceProvisionInfo): Promise<AvaPipeline> {
         try {
             const pipelineInstancePath = pathResolve(contentRootDirectory, `${cameraInfo.detectionType}PipelineInstance.json`);
             const pipelineInstance = fse.readJSONSync(pipelineInstancePath);
 
             pipelineInstance.name = cameraInfo.cameraId;
 
-            // iotCentralModule.logger([moduleName, cameraInfo.cameraId, 'info'], `### graphData: ${JSON.stringify(pipelineInstance, null, 4)}`);
+            // iotCentralModule.logger([moduleName, cameraInfo.cameraId, 'info'], `### pipelineData: ${JSON.stringify(pipelineInstance, null, 4)}`);
 
             const pipelineTopologyPath = pathResolve(contentRootDirectory, `${cameraInfo.detectionType}PipelineTopology.json`);
             const pipelineTopology = fse.readJSONSync(pipelineTopologyPath);
 
-            // iotCentralModule.logger([moduleName, cameraInfo.cameraId, 'info'], `### graphData: ${JSON.stringify(pipelineTopology, null, 4)}`);
+            // iotCentralModule.logger([moduleName, cameraInfo.cameraId, 'info'], `### pipelineData: ${JSON.stringify(pipelineTopology, null, 4)}`);
 
-            const amsGraph = new AmsGraph(iotCentralModule, cameraInfo, pipelineInstance, pipelineTopology);
+            const avaPipeline = new AvaPipeline(iotCentralModule, cameraInfo, pipelineInstance, pipelineTopology);
 
-            return amsGraph;
+            return avaPipeline;
         }
         catch (ex) {
             iotCentralModule.logger([moduleName, cameraInfo.cameraId, 'error'], `Error while loading pipeline topology: ${ex.message}`);
         }
     }
 
-    public static getCameraIdFromLvaMessage(message: IoTMessage): string {
-        const subject = AmsGraph.getLvaMessageProperty(message, 'subject');
+    public static getCameraIdFromAvaMessage(message: IoTMessage): string {
+        const subject = AvaPipeline.getAvaMessageProperty(message, 'subject');
         if (subject) {
-            const graphPathElements = subject.split('/');
-            if (graphPathElements.length >= 3 && graphPathElements[1] === 'pipelineInstances') {
-                const pipelineInstanceName = graphPathElements[2] || '';
+            const pipelinePathElements = subject.split('/');
+            if (pipelinePathElements.length >= 3 && pipelinePathElements[1] === 'graphInstances') {
+                const pipelineInstanceName = pipelinePathElements[2] || '';
                 if (pipelineInstanceName) {
                     return pipelineInstanceName.substring(pipelineInstanceName.indexOf('_') + 1) || '';
                 }
@@ -50,7 +50,7 @@ export class AmsGraph {
         return '';
     }
 
-    public static getLvaMessageProperty(message: IoTMessage, propertyName: string): string {
+    public static getAvaMessageProperty(message: IoTMessage, propertyName: string): string {
         const messageProperty = (message.properties?.propertyList || []).find(property => property.key === propertyName);
 
         return messageProperty?.value || '';
@@ -123,8 +123,8 @@ export class AmsGraph {
         param.value = value;
     }
 
-    public async startLvaGraph(graphParameters: any): Promise<boolean> {
-        this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'info'], `startLvaGraph`);
+    public async startAvaPipeline(pipelineParameters: any): Promise<boolean> {
+        this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'info'], `startAvaPipeline`);
 
         let result = false;
 
@@ -136,7 +136,7 @@ export class AmsGraph {
             }
 
             if (result === true) {
-                result = await this.setInstance(graphParameters);
+                result = await this.setInstance(pipelineParameters);
             }
 
             if (result === true) {
@@ -144,14 +144,14 @@ export class AmsGraph {
             }
         }
         catch (ex) {
-            this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'error'], `startLvaGraph error: ${ex.message}`);
+            this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'error'], `startAvaPipeline error: ${ex.message}`);
         }
 
         return result;
     }
 
-    public async stopLvaGraph(): Promise<boolean> {
-        this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'info'], `stopLvaGraph`);
+    public async stopAvaPipeline(): Promise<boolean> {
+        this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'info'], `stopAvaPipeline`);
 
         let result = false;
 
@@ -161,14 +161,14 @@ export class AmsGraph {
             result = true;
         }
         catch (ex) {
-            this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'error'], `stopLvaGraph error: ${ex.message}`);
+            this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'error'], `stopAvaPipeline error: ${ex.message}`);
         }
 
         return result;
     }
 
-    public async deleteLvaGraph(): Promise<boolean> {
-        this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'info'], `deleteLvaGraph`);
+    public async deleteAvaPipeline(): Promise<boolean> {
+        this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'info'], `deleteAvaPipeline`);
 
         let result = false;
 
@@ -180,7 +180,7 @@ export class AmsGraph {
             result = true;
         }
         catch (ex) {
-            this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'error'], `deleteLvaGraph error: ${ex.message}`);
+            this.iotCentralModule.logger([moduleName, this.cameraInfo.cameraId, 'error'], `deleteAvaPipeline error: ${ex.message}`);
         }
 
         return result;
@@ -218,53 +218,53 @@ export class AmsGraph {
     }
 
     private async setTopology(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineTopologySet`, this.topology);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.avaEdgeModuleId, `PipelineTopologySet`, this.topology);
 
         return response.status === 200;
     }
 
     // @ts-ignore
     private async deleteTopology(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineTopologyDelete`, this.topologyName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.avaEdgeModuleId, `PipelineTopologyDelete`, this.topologyName);
 
         return response.status === 200;
     }
 
-    private async setInstance(graphParameters: any): Promise<boolean> {
-        this.amsAssetName = graphParameters.assetName;
+    private async setInstance(pipelineParams: any): Promise<boolean> {
+        this.amsAssetName = pipelineParams.assetName;
         this.setParam('assetName', this.amsAssetName);
 
         this.setParam('rtspUrl', this.rtspUrl);
         this.setParam('rtspAuthUsername', this.cameraInfo.onvifUsername);
         this.setParam('rtspAuthPassword', this.cameraInfo.onvifPassword);
 
-        for (const param in graphParameters) {
-            if (!Object.prototype.hasOwnProperty.call(graphParameters, param)) {
+        for (const param in pipelineParams) {
+            if (!Object.prototype.hasOwnProperty.call(pipelineParams, param)) {
                 continue;
             }
 
-            this.setParam(param, graphParameters[param]);
+            this.setParam(param, pipelineParams[param]);
         }
 
-        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineInstanceSet`, this.instance);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.avaEdgeModuleId, `PipelineInstanceSet`, this.instance);
 
         return response.status === 200;
     }
 
     private async deleteInstance(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineInstanceDelete`, this.instanceName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.avaEdgeModuleId, `PipelineInstanceDelete`, this.instanceName);
 
         return response.status === 200;
     }
 
     private async activateInstance(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineInstanceActivate`, this.instanceName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.avaEdgeModuleId, `PipelineInstanceActivate`, this.instanceName);
 
         return response.status === 200;
     }
 
     private async deactivateInstance(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.lvaEdgeModuleId, `PipelineInstanceDeactivate`, this.instanceName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.envConfig.avaEdgeModuleId, `PipelineInstanceDeactivate`, this.instanceName);
 
         return response.status === 200;
     }

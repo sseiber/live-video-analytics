@@ -1,13 +1,13 @@
 [
     {
-        "@id": "dtmi:com:azuremedia:model:LvaEdgeGateway;1",
+        "@id": "dtmi:com:azuremedia:model:AvaEdgeGateway;1",
         "@context": [
             "dtmi:iotcentral:context;2",
             "dtmi:dtdl:context;2"
         ],
         "@type": "Interface",
         "displayName": {
-            "en": "LVA Edge Gateway Model"
+            "en": "AVA Edge Gateway Model"
         },
         "contents": [
             {
@@ -15,28 +15,28 @@
                     "dtmi:iotcentral:context;2",
                     "dtmi:dtdl:context;2"
                 ],
-                "@id": "dtmi:com:azuremedia:model:LvaEdgeGateway:LvaEdgeGatewayModule;1",
+                "@id": "dtmi:com:azuremedia:model:AvaEdgeGateway:AvaEdgeGatewayModule;1",
                 "@type": [
                     "Relationship",
                     "EdgeModule"
                 ],
                 "displayName": {
-                    "en": "LVA Edge Gateway Module"
+                    "en": "AVA Edge Gateway Module"
                 },
                 "maxMultiplicity": 1,
-                "name": "LvaEdgeGatewayModule",
+                "name": "AvaEdgeGatewayModule",
                 "target": [
-                    "dtmi:com:azuremedia:LvaEdgeGatewayModule;1"
+                    "dtmi:com:azuremedia:AvaEdgeGatewayModule;1"
                 ]
             }
         ]
     },
     {
-        "@id": "dtmi:com:azuremedia:LvaEdgeGatewayModule;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeGatewayModule;1",
         "@type": "Interface",
         "contents": [
             {
-                "@id": "dtmi:com:azuremedia:LvaEdgeGatewayModule:rel;1",
+                "@id": "dtmi:com:azuremedia:AvaEdgeGatewayModule:rel;1",
                 "@type": [
                     "Relationship",
                     "GatewayDevice"
@@ -49,12 +49,12 @@
             }
         ],
         "displayName": {
-            "en": "LVA Edge Gateway Module"
+            "en": "AVA Edge Gateway Module"
         },
         "extends": [
-            "dtmi:com:azuremedia:LvaEdgeGatewayModule:DeviceInformation;1",
-            "dtmi:com:azuremedia:LvaEdgeGatewayModule:LvaEdgeGatewaySettings;1",
-            "dtmi:com:azuremedia:LvaEdgeGatewayModule:LvaEdgeGatewayInterface;1"
+            "dtmi:com:azuremedia:AvaEdgeGatewayModule:DeviceInformation;1",
+            "dtmi:com:azuremedia:AvaEdgeGatewayModule:AvaEdgeGatewaySettings;1",
+            "dtmi:com:azuremedia:AvaEdgeGatewayModule:AvaEdgeGatewayInterface;1"
         ],
         "@context": [
             "dtmi:iotcentral:context;2",
@@ -66,7 +66,7 @@
             "dtmi:iotcentral:context;2",
             "dtmi:dtdl:context;2"
         ],
-        "@id": "dtmi:com:azuremedia:LvaEdgeGatewayModule:DeviceInformation;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeGatewayModule:DeviceInformation;1",
         "@type": "Interface",
         "displayName": {
             "en": "IoT Central Onvif Camera Gateway Device Information Interface"
@@ -151,10 +151,10 @@
             "dtmi:iotcentral:context;2",
             "dtmi:dtdl:context;2"
         ],
-        "@id": "dtmi:com:azuremedia:LvaEdgeGatewayModule:LvaEdgeGatewaySettings;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeGatewayModule:AvaEdgeGatewaySettings;1",
         "@type": "Interface",
         "displayName": {
-            "en": "Lva Edge Gateway Settings"
+            "en": "AVA Edge Gateway Settings"
         },
         "contents": [
             {
@@ -182,10 +182,10 @@
             "dtmi:iotcentral:context;2",
             "dtmi:dtdl:context;2"
         ],
-        "@id": "dtmi:com:azuremedia:LvaEdgeGatewayModule:LvaEdgeGatewayInterface;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeGatewayModule:AvaEdgeGatewayInterface;1",
         "@type": "Interface",
         "displayName": {
-            "en": "Lva Edge Gateway Interface"
+            "en": "AVA Edge Gateway Interface"
         },
         "contents": [
             {

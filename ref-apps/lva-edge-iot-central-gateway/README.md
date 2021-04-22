@@ -1,5 +1,5 @@
 # Azure IoT Central gateway module for Live Video Analytics
-Live Video Analytics on IoT Edge. It is used when you build and deploy an app for analyzing live video using an Azure IoT Central app template. The full tutorial showing how to modify and use this IoT Edge module code can be found at [Tutorial: Build and register the LVA Gateway Module](https://docs.microsoft.com/azure/iot-central/retail/tutorial-video-analytics-build-module).
+Live Video Analytics on IoT Edge. It is used when you build and deploy an app for analyzing live video using an Azure IoT Central app template. The full tutorial showing how to modify and use this IoT Edge module code can be found at [Tutorial: Build and register the AVA Gateway Module](https://docs.microsoft.com/azure/iot-central/retail/tutorial-video-analytics-build-module).
 
 To learn how to use Live Video Analytics on IoT Edge see the full documentation at [Live Video Analytics on IoT Edge documentation](https://docs.microsoft.com/en-us/azure/media-services/live-video-analytics-edge/).
 
@@ -18,7 +18,7 @@ To complete the steps in this tutorial, you need:
     git clone https://github.com/Azure/live-video-analytics
     ```
 
-1. Open the cloned **live-video-analytics** repository and cd into the *ref-apps/lva-edge-iot-central-gateway* folder with VS Code.
+1. Open the cloned **live-video-analytics** repository and cd into the *ref-apps/ava-edge-iot-central-gateway* folder with VS Code.
 
 1. Run the install command. This command installs the required packages and runs the setup scripts.
    ```
@@ -29,14 +29,14 @@ To complete the steps in this tutorial, you need:
    * The `./configs` directory will include your working files:
      * `imageConfig.json` - defines the docker container image name
      * `state.json` - defines the properties read from the Edge device at runtime
-     * `./mediaPipelines` - a folder containing the media graph files that will be included into your docker container image. If you have any fixed instance variables you would set them here in the `objectPipelineInstance.json` or the `motionPipelineInstance.json` file. An example would be the `inferencingUrl` variable used to call the Yolov3 module.
+     * `./mediaPipelines` - a folder containing the media pipeline files that will be included into your docker container image. If you have any fixed instance variables you would set them here in the `objectPipelineInstance.json` or the `motionPipelineInstance.json` file. An example would be the `inferencingUrl` variable used to call the Yolov3 module.
      * `./deploymentManifests` - a folder containing the Edge deployment manifest files for various cpu architectures and deployment configurations.
 
 1. Edit the *./setup/imageConfig.json* file to update the image named based on your container registry name:
     ```
     {
         "arch": "[amd64|arm64v8]",
-        "imageName": "[Server].azurecr.io/lva-edge-gateway",
+        "imageName": "[Server].azurecr.io/ava-edge-gateway",
         "versionTag": "latest"
     }
     ```
@@ -44,7 +44,7 @@ To complete the steps in this tutorial, you need:
 ### Add Inference Endpoint for Custom Inference Service
 In order to bring up your own custom inference service, you need to include the inference URL in *objectPipelineInstance.json*. Please follow below instructions to add value of inference URL.
 1. In VS Code, open *./configs/mediaPipelines/objectPipelineInstance.json* file.
-2. Edit the `inferencingUrl` parameter section to add value of `inference URL`(Line no.26). Below are the list of available inference endpoint values for LVA.
+2. Edit the `inferencingUrl` parameter section to add value of `inference URL`(Line no.26). Below are the list of available inference endpoint values for AVA.
 
 **OpenVINO™ Model Server**
 - Vehicle Detection: http://OpenVINOModelServerEdgeAIExtensionModule:4000/vehicleDetection 
@@ -52,13 +52,13 @@ In order to bring up your own custom inference service, you need to include the 
 - Face Detection: http://OpenVINOModelServerEdgeAIExtensionModule:4000/vehicleDetection   
 
 **YOLOv3**
-- Object Detection: http://lvaYolov3/score
+- Object Detection: http://avaYolov3/score
 
 
 ### Edit the deployment.amd64.json file
 1. In VS Code, open the the *configs/deploymentManifests/deployment.amd64.json* file. (Or, a specific deployment file that matches your scenario - e.g. OpenVINO, ARM64, etc.)
 1. Edit the `registryCredentials` section to add your Azure Container Registry credentials.
-1. Edit the `LvaEdgeGatewayModule` module section to add the name of your image and your AMS account name in the `env:amsAccountName:value`.
+1. Edit the `AvaEdgeGatewayModule` module section to add the name of your image and your AMS account name in the `env:amsAccountName:value`.
 1. See the [Create a Live Video Analytics application in Azure IoT Central](https://docs.microsoft.com/azure/iot-central/retail/tutorial-video-analytics-create-app) for more information about how to complete the configuration.
 
 ## Build the code

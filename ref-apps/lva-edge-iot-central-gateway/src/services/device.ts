@@ -13,7 +13,7 @@ import {
     IEnvConfig,
     ICameraDeviceProvisionInfo
 } from './cameraGateway';
-import { AmsGraph } from './amsGraph';
+import { AvaPipeline } from './avaPipeline';
 import { bind, defer, emptyObj } from '../utils';
 
 export type DevicePropertiesHandler = (desiredChangedSettings: any) => Promise<void>;
@@ -75,7 +75,7 @@ interface IOnvifCameraSettings {
 const defaultVideoPlaybackHost = 'http://localhost:8094';
 const defaultMaxVideoInferenceTime = 10;
 
-enum LvaEdgeOperationsCapability {
+enum AvaEdgeOperationsCapability {
     evPipelineInstanceCreated = 'evPipelineInstanceCreated',
     evPipelineInstanceDeleted = 'evPipelineInstanceDeleted',
     evPipelineInstanceStarted = 'evPipelineInstanceStarted',
@@ -83,20 +83,20 @@ enum LvaEdgeOperationsCapability {
     evRecordingStarted = 'evRecordingStarted',
     evRecordingStopped = 'evRecordingStopped',
     evRecordingAvailable = 'evRecordingAvailable',
-    evStartLvaGraphCommandReceived = 'evStartLvaGraphCommandReceived',
-    evStopLvaGraphCommandReceived = 'evStopLvaGraphCommandReceived',
+    evStartAvaPipelineCommandReceived = 'evStartAvaPipelineCommandReceived',
+    evStopAvaPipelineCommandReceived = 'evStopAvaPipelineCommandReceived',
     wpAutoStart = 'wpAutoStart',
     wpMaxVideoInferenceTime = 'wpMaxVideoInferenceTime',
-    cmStartLvaProcessing = 'cmStartLvaProcessing',
-    cmStopLvaProcessing = 'cmStopLvaProcessing'
+    cmStartAvaProcessing = 'cmStartAvaProcessing',
+    cmStopAvaProcessing = 'cmStopAvaProcessing'
 }
 
-interface ILvaEdgeOperationsSettings {
-    [LvaEdgeOperationsCapability.wpAutoStart]: boolean;
-    [LvaEdgeOperationsCapability.wpMaxVideoInferenceTime]: number;
+interface IAvaEdgeOperationsSettings {
+    [AvaEdgeOperationsCapability.wpAutoStart]: boolean;
+    [AvaEdgeOperationsCapability.wpMaxVideoInferenceTime]: number;
 }
 
-enum LvaEdgeDiagnosticsCapability {
+enum AvaEdgeDiagnosticsCapability {
     evRuntimeError = 'evRuntimeError',
     evAuthenticationError = 'evAuthenticationError',
     evAuthorizationError = 'evAuthorizationError',
@@ -109,8 +109,8 @@ enum LvaEdgeDiagnosticsCapability {
     wpDebugTelemetry = 'wpDebugTelemetry'
 }
 
-interface ILvaEdgeDiagnosticsSettings {
-    [LvaEdgeDiagnosticsCapability.wpDebugTelemetry]: boolean;
+interface IAvaEdgeDiagnosticsSettings {
+    [AvaEdgeDiagnosticsCapability.wpDebugTelemetry]: boolean;
 }
 
 const defaultInferenceTimeout = 5;
@@ -131,7 +131,7 @@ interface IAiInferenceSettings {
 export abstract class AmsCameraDevice {
     protected iotCentralModule: IIoTCentralModule;
     protected envConfig: IEnvConfig;
-    protected amsGraph: AmsGraph;
+    protected avaPipeline: AvaPipeline;
     protected cameraInfo: ICameraDeviceProvisionInfo;
     protected deviceClient: IoTDeviceClient;
     protected deviceTwin: Twin;
@@ -144,12 +144,12 @@ export abstract class AmsCameraDevice {
         wpOnvifMediaProfile: OnvifMediaProfile.MediaProfile1,
         wpVideoPlaybackHost: defaultVideoPlaybackHost
     };
-    protected lvaEdgeOperationsSettings: ILvaEdgeOperationsSettings = {
-        [LvaEdgeOperationsCapability.wpAutoStart]: false,
-        [LvaEdgeOperationsCapability.wpMaxVideoInferenceTime]: defaultMaxVideoInferenceTime
+    protected avaEdgeOperationsSettings: IAvaEdgeOperationsSettings = {
+        [AvaEdgeOperationsCapability.wpAutoStart]: false,
+        [AvaEdgeOperationsCapability.wpMaxVideoInferenceTime]: defaultMaxVideoInferenceTime
     };
-    protected lvaEdgeDiagnosticsSettings: ILvaEdgeDiagnosticsSettings = {
-        [LvaEdgeDiagnosticsCapability.wpDebugTelemetry]: false
+    protected avaEdgeDiagnosticsSettings: IAvaEdgeDiagnosticsSettings = {
+        [AvaEdgeDiagnosticsCapability.wpDebugTelemetry]: false
     };
     protected aiInferenceSettings: IAiInferenceSettings = {
         [AiInferenceCapability.wpInferenceTimeout]: defaultInferenceTimeout
@@ -157,16 +157,16 @@ export abstract class AmsCameraDevice {
     private inferenceInterval: NodeJS.Timeout;
     private createVideoLinkForInferenceTimeout = false;
 
-    constructor(iotCentralModule: IIoTCentralModule, amsGraph: AmsGraph, cameraInfo: ICameraDeviceProvisionInfo) {
+    constructor(iotCentralModule: IIoTCentralModule, avaPipeline: AvaPipeline, cameraInfo: ICameraDeviceProvisionInfo) {
         this.iotCentralModule = iotCentralModule;
         this.envConfig = iotCentralModule.getAppConfig().env;
-        this.amsGraph = amsGraph;
+        this.avaPipeline = avaPipeline;
         this.cameraInfo = cameraInfo;
     }
 
-    public abstract setGraphParameters(): any;
+    public abstract setPipelineParams(): any;
     public abstract deviceReady(): Promise<void>;
-    public abstract processLvaInferences(inferenceData: any): Promise<void>;
+    public abstract processAvaInferences(inferenceData: any): Promise<void>;
 
     public async connectDeviceClient(dpsHubConnectionString: string): Promise<IClientConnectResult> {
         let clientConnectionResult: IClientConnectResult = {
@@ -188,12 +188,12 @@ export abstract class AmsCameraDevice {
                 });
             }
 
-            if (this.lvaEdgeOperationsSettings[LvaEdgeOperationsCapability.wpAutoStart] === true) {
+            if (this.avaEdgeOperationsSettings[AvaEdgeOperationsCapability.wpAutoStart] === true) {
                 try {
-                    await this.startLvaProcessingInternal(true);
+                    await this.startAvaProcessingInternal(true);
                 }
                 catch (ex) {
-                    this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `Error while trying to auto-start Lva graph: ${ex.message}`);
+                    this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `Error while trying to auto-start AVA pipeline: ${ex.message}`);
                 }
             }
         }
@@ -220,9 +220,9 @@ export abstract class AmsCameraDevice {
         this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Deleting camera device instance for cameraId: ${this.cameraInfo.cameraId}`);
 
         try {
-            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Deactiving pipeline instance: ${this.amsGraph.getInstanceName()}`);
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Deactiving pipeline instance: ${this.avaPipeline.getInstanceName()}`);
 
-            await this.amsGraph.deleteLvaGraph();
+            await this.avaPipeline.deleteAvaPipeline();
 
             this.deviceTwin?.removeAllListeners();
             this.deviceClient.removeAllListeners();
@@ -241,88 +241,88 @@ export abstract class AmsCameraDevice {
         }
     }
 
-    public async sendLvaEvent(lvaEvent: string, messageJson?: any): Promise<void> {
+    public async sendAvaEvent(avaEvent: string, messageJson?: any): Promise<void> {
         let eventField;
         let eventValue = this.cameraInfo.cameraId;
 
-        switch (lvaEvent) {
+        switch (avaEvent) {
             case 'Microsoft.Media.Graph.Operational.RecordingStarted':
-                eventField = LvaEdgeOperationsCapability.evRecordingStarted;
+                eventField = AvaEdgeOperationsCapability.evRecordingStarted;
                 eventValue = messageJson?.outputLocation || this.cameraInfo.cameraId;
                 break;
 
             case 'Microsoft.Media.Graph.Operational.RecordingStopped':
-                eventField = LvaEdgeOperationsCapability.evRecordingStopped;
+                eventField = AvaEdgeOperationsCapability.evRecordingStopped;
                 eventValue = messageJson?.outputLocation || this.cameraInfo.cameraId;
                 break;
 
             case 'Microsoft.Media.Graph.Operational.RecordingAvailable':
-                eventField = LvaEdgeOperationsCapability.evRecordingAvailable;
+                eventField = AvaEdgeOperationsCapability.evRecordingAvailable;
                 eventValue = messageJson?.outputLocation || this.cameraInfo.cameraId;
                 break;
 
             case 'Microsoft.Media.Edge.Diagnostics.RuntimeError':
-                eventField = LvaEdgeDiagnosticsCapability.evRuntimeError;
+                eventField = AvaEdgeDiagnosticsCapability.evRuntimeError;
                 eventValue = messageJson?.code || this.cameraInfo.cameraId;
                 break;
 
             case 'Microsoft.Media.Graph.Diagnostics.AuthenticationError':
-                eventField = LvaEdgeDiagnosticsCapability.evAuthenticationError;
+                eventField = AvaEdgeDiagnosticsCapability.evAuthenticationError;
                 eventValue = messageJson?.errorCode || this.cameraInfo.cameraId;
                 break;
 
             case 'Microsoft.Media.Graph.Diagnostics.AuthorizationError':
-                eventField = LvaEdgeDiagnosticsCapability.evAuthorizationError;
+                eventField = AvaEdgeDiagnosticsCapability.evAuthorizationError;
                 eventValue = messageJson?.errorCode || this.cameraInfo.cameraId;
                 break;
 
             case 'Microsoft.Media.Graph.Diagnostics.DataDropped':
-                eventField = LvaEdgeDiagnosticsCapability.evDataDropped;
+                eventField = AvaEdgeDiagnosticsCapability.evDataDropped;
                 eventValue = messageJson?.dataType || this.cameraInfo.cameraId;
                 break;
 
             case 'Microsoft.Media.Graph.Diagnostics.MediaFormatError':
-                eventField = LvaEdgeDiagnosticsCapability.evMediaFormatError;
+                eventField = AvaEdgeDiagnosticsCapability.evMediaFormatError;
                 eventValue = messageJson?.code || this.cameraInfo.cameraId;
                 break;
 
             case 'Microsoft.Media.Graph.Diagnostics.MediaSessionEstablished':
-                eventField = LvaEdgeDiagnosticsCapability.evMediaSessionEstablished;
+                eventField = AvaEdgeDiagnosticsCapability.evMediaSessionEstablished;
                 eventValue = this.cameraInfo.cameraId;
                 break;
 
             case 'Microsoft.Media.Graph.Diagnostics.NetworkError':
-                eventField = LvaEdgeDiagnosticsCapability.evNetworkError;
+                eventField = AvaEdgeDiagnosticsCapability.evNetworkError;
                 eventValue = messageJson?.errorCode || this.cameraInfo.cameraId;
                 break;
 
             case 'Microsoft.Media.Graph.Diagnostics.ProtocolError':
-                eventField = LvaEdgeDiagnosticsCapability.evProtocolError;
+                eventField = AvaEdgeDiagnosticsCapability.evProtocolError;
                 eventValue = `${messageJson?.protocol}: ${messageJson?.errorCode}` || this.cameraInfo.cameraId;
                 break;
 
             case 'Microsoft.Media.Graph.Diagnostics.StorageError':
-                eventField = LvaEdgeDiagnosticsCapability.evStorageError;
+                eventField = AvaEdgeDiagnosticsCapability.evStorageError;
                 eventValue = messageJson?.storageAccountName || this.cameraInfo.cameraId;
                 break;
 
             default:
-                this.iotCentralModule.logger([this.cameraInfo.cameraId, 'warning'], `Received Unknown Lva event telemetry: ${lvaEvent}`);
+                this.iotCentralModule.logger([this.cameraInfo.cameraId, 'warning'], `Received Unknown AVA event telemetry: ${avaEvent}`);
                 break;
         }
 
-        if (lvaEvent) {
+        if (avaEvent) {
             await this.sendMeasurement({
                 [eventField]: eventValue
             });
         }
         else {
-            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'warning'], `Received Unknown Lva event telemetry: ${lvaEvent}`);
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'warning'], `Received Unknown AVA event telemetry: ${avaEvent}`);
         }
     }
 
     protected debugTelemetry(): boolean {
-        return this.lvaEdgeDiagnosticsSettings[LvaEdgeDiagnosticsCapability.wpDebugTelemetry];
+        return this.avaEdgeDiagnosticsSettings[AvaEdgeDiagnosticsCapability.wpDebugTelemetry];
     }
 
     protected async getCameraProps(): Promise<IOnvifCameraInformation> {
@@ -413,16 +413,16 @@ export abstract class AmsCameraDevice {
                         patchedProperties[setting] = (this.onvifCameraSettings[setting] as any) = value || defaultVideoPlaybackHost;
                         break;
 
-                    case LvaEdgeOperationsCapability.wpAutoStart:
-                        patchedProperties[setting] = (this.lvaEdgeOperationsSettings[setting] as any) = value || false;
+                    case AvaEdgeOperationsCapability.wpAutoStart:
+                        patchedProperties[setting] = (this.avaEdgeOperationsSettings[setting] as any) = value || false;
                         break;
 
-                    case LvaEdgeOperationsCapability.wpMaxVideoInferenceTime:
-                        patchedProperties[setting] = (this.lvaEdgeOperationsSettings[setting] as any) = value || defaultMaxVideoInferenceTime;
+                    case AvaEdgeOperationsCapability.wpMaxVideoInferenceTime:
+                        patchedProperties[setting] = (this.avaEdgeOperationsSettings[setting] as any) = value || defaultMaxVideoInferenceTime;
                         break;
 
-                    case LvaEdgeDiagnosticsCapability.wpDebugTelemetry:
-                        patchedProperties[setting] = (this.lvaEdgeDiagnosticsSettings[setting] as any) = value || false;
+                    case AvaEdgeDiagnosticsCapability.wpDebugTelemetry:
+                        patchedProperties[setting] = (this.avaEdgeDiagnosticsSettings[setting] as any) = value || false;
                         break;
 
                     case AiInferenceCapability.wpInferenceTimeout:
@@ -474,16 +474,16 @@ export abstract class AmsCameraDevice {
     //                     patchedProperties[setting] = (this.onvifCameraSettings[setting] as any) = value || defaultVideoPlaybackHost;
     //                     break;
 
-    //                 case LvaEdgeOperationsCapability.wpAutoStart:
-    //                     patchedProperties[setting] = (this.lvaEdgeOperationsSettings[setting] as any) = value || false;
+    //                 case AvaEdgeOperationsCapability.wpAutoStart:
+    //                     patchedProperties[setting] = (this.avaEdgeOperationsSettings[setting] as any) = value || false;
     //                     break;
 
-    //                 case LvaEdgeOperationsCapability.wpMaxVideoInferenceTime:
-    //                     patchedProperties[setting] = (this.lvaEdgeOperationsSettings[setting] as any) = value || defaultMaxVideoInferenceTime;
+    //                 case AvaEdgeOperationsCapability.wpMaxVideoInferenceTime:
+    //                     patchedProperties[setting] = (this.avaEdgeOperationsSettings[setting] as any) = value || defaultMaxVideoInferenceTime;
     //                     break;
 
-    //                 case LvaEdgeDiagnosticsCapability.wpDebugTelemetry:
-    //                     patchedProperties[setting] = (this.lvaEdgeDiagnosticsSettings[setting] as any) = value || false;
+    //                 case AvaEdgeDiagnosticsCapability.wpDebugTelemetry:
+    //                     patchedProperties[setting] = (this.avaEdgeDiagnosticsSettings[setting] as any) = value || false;
     //                     break;
 
     //                 case AiInferenceCapability.tlInferenceTimeout:
@@ -562,25 +562,25 @@ export abstract class AmsCameraDevice {
         }
     }
 
-    protected async startLvaProcessingInternal(autoStart: boolean): Promise<boolean> {
+    protected async startAvaProcessingInternal(autoStart: boolean): Promise<boolean> {
         await this.sendMeasurement({
-            [LvaEdgeOperationsCapability.evStartLvaGraphCommandReceived]: autoStart ? 'AutoStart' : 'Command'
+            [AvaEdgeOperationsCapability.evStartAvaPipelineCommandReceived]: autoStart ? 'AutoStart' : 'Command'
         });
 
-        const startLvaGraphResult = await this.amsGraph.startLvaGraph(this.setGraphParameters());
+        const startAvaPipelineResult = await this.avaPipeline.startAvaPipeline(this.setPipelineParams());
 
         if (this.iotCentralModule.debugTelemetry()) {
-            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Pipeline Instance Name: ${JSON.stringify(this.amsGraph.getInstanceName(), null, 4)}`);
-            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Pipeline Instance: ${JSON.stringify(this.amsGraph.getInstance(), null, 4)}`);
-            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Pipeline Topology Name: ${JSON.stringify(this.amsGraph.getInstanceName(), null, 4)}`);
-            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Pipeline Topology: ${JSON.stringify(this.amsGraph.getTopology(), null, 4)}`);
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Pipeline Instance Name: ${JSON.stringify(this.avaPipeline.getInstanceName(), null, 4)}`);
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Pipeline Instance: ${JSON.stringify(this.avaPipeline.getInstance(), null, 4)}`);
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Pipeline Topology Name: ${JSON.stringify(this.avaPipeline.getInstanceName(), null, 4)}`);
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `Pipeline Topology: ${JSON.stringify(this.avaPipeline.getTopology(), null, 4)}`);
         }
 
         await this.sendMeasurement({
-            [OnvifCameraCapability.stCameraState]: startLvaGraphResult === true ? CameraState.Active : CameraState.Inactive
+            [OnvifCameraCapability.stCameraState]: startAvaPipelineResult === true ? CameraState.Active : CameraState.Inactive
         });
 
-        return startLvaGraphResult;
+        return startAvaPipelineResult;
     }
 
     private async inferenceTimer(): Promise<void> {
@@ -598,7 +598,7 @@ export abstract class AmsCameraDevice {
                     this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `InferenceTimeout reached`);
 
                     await this.sendMeasurement({
-                        [AiInferenceCapability.evInferenceEventVideoUrl]: this.amsGraph.createInferenceVideoLink(
+                        [AiInferenceCapability.evInferenceEventVideoUrl]: this.avaPipeline.createInferenceVideoLink(
                             this.onvifCameraSettings[OnvifCameraCapability.wpVideoPlaybackHost],
                             this.videoInferenceStartTime,
                             Math.trunc(videoInferenceDuration.asSeconds()))
@@ -615,11 +615,11 @@ export abstract class AmsCameraDevice {
             else {
                 this.createVideoLinkForInferenceTimeout = true;
 
-                if (videoInferenceDuration >= moment.duration(this.lvaEdgeOperationsSettings[LvaEdgeOperationsCapability.wpMaxVideoInferenceTime], 'seconds')) {
+                if (videoInferenceDuration >= moment.duration(this.avaEdgeOperationsSettings[AvaEdgeOperationsCapability.wpMaxVideoInferenceTime], 'seconds')) {
                     this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `MaxVideoInferenceTime reached`);
 
                     await this.sendMeasurement({
-                        [AiInferenceCapability.evInferenceEventVideoUrl]: this.amsGraph.createInferenceVideoLink(
+                        [AiInferenceCapability.evInferenceEventVideoUrl]: this.avaPipeline.createInferenceVideoLink(
                             this.onvifCameraSettings[OnvifCameraCapability.wpVideoPlaybackHost],
                             this.videoInferenceStartTime,
                             Math.trunc(videoInferenceDuration.asSeconds()))
@@ -685,8 +685,8 @@ export abstract class AmsCameraDevice {
 
             this.deviceClient.on('error', this.onDeviceClientError);
 
-            this.deviceClient.onDeviceMethod(LvaEdgeOperationsCapability.cmStartLvaProcessing, this.startLvaProcessing);
-            this.deviceClient.onDeviceMethod(LvaEdgeOperationsCapability.cmStopLvaProcessing, this.stopLvaProcessing);
+            this.deviceClient.onDeviceMethod(AvaEdgeOperationsCapability.cmStartAvaProcessing, this.startAvaProcessing);
+            this.deviceClient.onDeviceMethod(AvaEdgeOperationsCapability.cmStopAvaProcessing, this.stopAvaProcessing);
 
             result.clientConnectionStatus = true;
         }
@@ -708,20 +708,20 @@ export abstract class AmsCameraDevice {
 
     @bind
     // @ts-ignore
-    private async startLvaProcessing(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
-        this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `${LvaEdgeOperationsCapability.cmStartLvaProcessing} command received`);
+    private async startAvaProcessing(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
+        this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `${AvaEdgeOperationsCapability.cmStartAvaProcessing} command received`);
 
         try {
-            const startLvaGraphResult = await this.startLvaProcessingInternal(false);
+            const startAvaPipelineResult = await this.startAvaProcessingInternal(false);
 
-            const responseMessage = `LVA Edge start graph request: ${startLvaGraphResult ? 'succeeded' : 'failed'}`;
+            const responseMessage = `AVA Edge start pipeline request: ${startAvaPipelineResult ? 'succeeded' : 'failed'}`;
             this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], responseMessage);
 
             await commandResponse.send(200, {
                 message: responseMessage
             });
 
-            if (startLvaGraphResult) {
+            if (startAvaPipelineResult) {
                 this.lastInferenceTime = moment.utc(0);
                 this.videoInferenceStartTime = moment.utc();
                 this.createVideoLinkForInferenceTimeout = false;
@@ -732,30 +732,30 @@ export abstract class AmsCameraDevice {
             }
         }
         catch (ex) {
-            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `startLvaProcessing error: ${ex.message}`);
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `startAvaProcessing error: ${ex.message}`);
         }
     }
 
     @bind
     // @ts-ignore
-    private async stopLvaProcessing(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
-        this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `${LvaEdgeOperationsCapability.cmStopLvaProcessing} command received`);
+    private async stopAvaProcessing(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
+        this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], `${AvaEdgeOperationsCapability.cmStopAvaProcessing} command received`);
 
         try {
             clearInterval(this.inferenceInterval);
 
             await this.sendMeasurement({
-                [LvaEdgeOperationsCapability.evStopLvaGraphCommandReceived]: this.cameraInfo.cameraId
+                [AvaEdgeOperationsCapability.evStopAvaPipelineCommandReceived]: this.cameraInfo.cameraId
             });
 
-            const stopLvaGraphResult = await this.amsGraph.stopLvaGraph();
-            if (stopLvaGraphResult) {
+            const stopAvaPipelineResult = await this.avaPipeline.stopAvaPipeline();
+            if (stopAvaPipelineResult) {
                 await this.sendMeasurement({
                     [OnvifCameraCapability.stCameraState]: CameraState.Inactive
                 });
             }
 
-            const responseMessage = `LVA Edge stop graph request: ${stopLvaGraphResult ? 'succeeded' : 'failed'}`;
+            const responseMessage = `AVA Edge stop pipeline request: ${stopAvaPipelineResult ? 'succeeded' : 'failed'}`;
             this.iotCentralModule.logger([this.cameraInfo.cameraId, 'info'], responseMessage);
 
             await commandResponse.send(200, {
@@ -763,7 +763,7 @@ export abstract class AmsCameraDevice {
             });
         }
         catch (ex) {
-            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `Stop LVA error ${ex.message}`);
+            this.iotCentralModule.logger([this.cameraInfo.cameraId, 'error'], `Stop AVA error ${ex.message}`);
         }
     }
 }

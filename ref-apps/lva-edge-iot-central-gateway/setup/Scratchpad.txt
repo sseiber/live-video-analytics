@@ -18,7 +18,7 @@ Media Service account name
 ------------------------------------
 
 When the deployment is complete, open a Cloud Shell and run the following command to retrieve the Resource ID for your media service account:
-az resource list --resource-group lva-rg --resource-type microsoft.media/mediaservices --output table --query "[].{ResourceID:id}"
+az resource list --resource-group ava-rg --resource-type microsoft.media/mediaservices --output table --query "[].{ResourceID:id}"
 
 ------------------------------------
 Resource ID
@@ -42,7 +42,7 @@ Sample:
 	"AadTenantId": "<will be aadTenantId in deployment manifest>",
 	"AccountName": "<AccountName>",
 	"Location": "East US",
-	"ResourceGroup": "lva-rg",
+	"ResourceGroup": "ava-rg",
 	"SubscriptionId": "<SubscriptionId>",
 	"ArmAadAudience": "https://management.core.windows.net",
 	"ArmEndpoint": "https://management.azure.com"
@@ -66,13 +66,13 @@ Application ID
 Sample:
 1d613b28-272b-4cf9-8a5f-f64f11b3a4c3
 
-Select API Tokens and generate a new token called LVAEdgeToken for the Operator role:
+Select API Tokens and generate a new token called AvaEdgeToken for the Operator role:
 ------------------------------------
 Operator API Token
 [Paste here]
 ------------------------------------
 Sample:
-SharedAccessSignature sr=[GUID]&sig=[SECRET_STRING]=lvaedgetoken&se=[SALT]
+SharedAccessSignature sr=[GUID]&sig=[SECRET_STRING]=avaedgetoken&se=[SALT]
 
 In the Administration section, select Device connection, and then select SAS-IoT-Devices.
 ------------------------------------

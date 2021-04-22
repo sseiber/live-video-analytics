@@ -2,8 +2,8 @@
     "@apiVersion": "2.0",
     "name": "",
     "properties": {
-        "description": "Motion detection graph with cloud recording",
-        "topologyName": "LvaIotcMotionDetectionWithCvr",
+        "description": "Motion detection pipeline with cloud recording",
+        "topologyName": "AvaIotcMotionDetectionWithCvr",
         "parameters": [
             {
                 "name": "rtspUrl",

@@ -1,21 +1,21 @@
 [
     {
-        "@id": "dtmi:com:azuremedia:model:LvaEdgeObjectDetectorDevice;1",
+        "@id": "dtmi:com:azuremedia:model:AvaEdgeObjectDetectorDevice;1",
         "@context": [
             "dtmi:iotcentral:context;2",
             "dtmi:dtdl:context;2"
         ],
         "@type": "Interface",
         "displayName": {
-            "en": "Lva Edge Object Detector Device"
+            "en": "AVA Edge Object Detector Device"
         },
-        "description": "Lva Edge Object Detector Device",
+        "description": "AVA Edge Object Detector Device",
         "extends": [
-            "dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:DeviceInformation;1",
-            "dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:OnvifCamera;1",
-            "dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:AiInference;1",
-            "dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:LvaEdgeOperations;1",
-            "dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:LvaEdgeDiagnostics;1"
+            "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:DeviceInformation;1",
+            "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:OnvifCamera;1",
+            "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AiInference;1",
+            "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeOperations;1",
+            "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeDiagnostics;1"
         ],
         "contents": [
             {
@@ -52,7 +52,7 @@
             "dtmi:iotcentral:context;2",
             "dtmi:dtdl:context;2"
         ],
-        "@id": "dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:DeviceInformation;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:DeviceInformation;1",
         "@type": "Interface",
         "displayName": {
             "en": "Onvif Camera Device Information Interface"
@@ -117,7 +117,7 @@
         ]
     },
     {
-        "@id": "dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:OnvifCamera;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:OnvifCamera;1",
         "@context": "dtmi:dtdl:context;2",
         "@type": "Interface",
         "displayName": {
@@ -322,7 +322,7 @@
         ]
     },
     {
-        "@id": "dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:AiInference;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AiInference;1",
         "@context": "dtmi:dtdl:context;2",
         "@type": "Interface",
         "displayName": {
@@ -482,11 +482,11 @@
         ]
     },
     {
-        "@id": "dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:LvaEdgeOperations;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeOperations;1",
         "@context": "dtmi:dtdl:context;2",
         "@type": "Interface",
         "displayName": {
-            "en": "Lva Edge Operations Interface"
+            "en": "AVA Edge Operations Interface"
         },
         "contents": [
             {
@@ -572,9 +572,9 @@
                     "Event"
                 ],
                 "displayName": {
-                    "en": "Start LVA Command"
+                    "en": "Start AVA Command"
                 },
-                "name": "evStartLvaGraphCommandReceived",
+                "name": "evStartAvaPipelineCommandReceived",
                 "schema": "string"
             },
             {
@@ -583,9 +583,9 @@
                     "Event"
                 ],
                 "displayName": {
-                    "en": "Stop LVA Command"
+                    "en": "Stop AVA Command"
                 },
-                "name": "evStopLvaGraphCommandReceived",
+                "name": "evStopAvaPipelineCommandReceived",
                 "schema": "string"
             },
             {
@@ -609,9 +609,9 @@
             {
                 "@type": "Command",
                 "displayName": {
-                    "en": "Start LVA Processing"
+                    "en": "Start AVA Processing"
                 },
-                "name": "cmStartLvaProcessing",
+                "name": "cmStartAvaProcessing",
                 "response": {
                     "@type": "CommandPayload",
                     "displayName": {
@@ -652,9 +652,9 @@
             {
                 "@type": "Command",
                 "displayName": {
-                    "en": "Stop LVA Processing"
+                    "en": "Stop AVA Processing"
                 },
-                "name": "cmStopLvaProcessing",
+                "name": "cmStopAvaProcessing",
                 "response": {
                     "@type": "CommandPayload",
                     "displayName": {
@@ -695,11 +695,11 @@
         ]
     },
     {
-        "@id": "dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:LvaEdgeDiagnostics;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeDiagnostics;1",
         "@context": "dtmi:dtdl:context;2",
         "@type": "Interface",
         "displayName": {
-            "en": "Lva Edge Diagnostics Interface"
+            "en": "AVA Edge Diagnostics Interface"
         },
         "contents": [
             {

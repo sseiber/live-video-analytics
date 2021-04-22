@@ -2,7 +2,7 @@ import { service, inject } from 'spryly';
 import { Server } from '@hapi/hapi';
 import { StorageService } from './storage';
 import { HealthState } from './health';
-import { AmsGraph } from './amsGraph';
+import { AvaPipeline } from './avaPipeline';
 import { AmsCameraDevice, OnvifCameraCapability } from './device';
 import { AmsMotionDetectorDevice } from './motionDetectorDevice';
 import { AmsObjectDetectorDevice } from './objectDetectorDevice';
@@ -34,7 +34,7 @@ type DeviceOperation = 'DELETE_CAMERA' | 'SEND_EVENT' | 'SEND_INFERENCES';
 
 export interface IEnvConfig {
     onvifModuleId: string;
-    lvaEdgeModuleId: string;
+    avaEdgeModuleId: string;
     amsAccountName: string;
 }
 
@@ -129,17 +129,17 @@ enum AddCameraDetectionType {
     Object = 'object'
 }
 
-const LvaCameraDeviceTypeMap = {
+const AvaCameraDeviceTypeMap = {
     [AddCameraDetectionType.Object]: {
-        templateId: 'dtmi:com:azuremedia:model:LvaEdgeObjectDetectorDevice;1',
+        templateId: 'dtmi:com:azuremedia:model:AvaEdgeObjectDetectorDevice;1',
         deviceClass: AmsObjectDetectorDevice
     },
     [AddCameraDetectionType.Motion]: {
-        templateId: 'dtmi:com:azuremedia:model:LvaEdgeMotionDetectorDevice;1',
+        templateId: 'dtmi:com:azuremedia:model:AvaEdgeMotionDetectorDevice;1',
         deviceClass: AmsMotionDetectorDevice
     }
 };
-const LvaOperationsInterfaceId = 'dtmi:com:azuremedia:LvaEdgeObjectDetectorDevice:LvaEdgeOperations;1';
+const AvaOperationsInterfaceId = 'dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeOperations;1';
 
 enum RestartModuleCommandRequestParams {
     Timeout = 'RestartModuleRequestParams_Timeout'
@@ -155,7 +155,7 @@ enum CommandResponseParams {
     Data = 'CommandResponseParams_Data'
 }
 
-enum LvaGatewayCapability {
+enum AvaGatewayCapability {
     tlSystemHeartbeat = 'tlSystemHeartbeat',
     tlFreeMemory = 'tlFreeMemory',
     tlConnectedCameras = 'tlConnectedCameras',
@@ -173,19 +173,19 @@ enum LvaGatewayCapability {
     cmRestartModule = 'cmRestartModule'
 }
 
-interface ILvaGatewaySettings {
-    [LvaGatewayCapability.wpDebugTelemetry]: boolean;
-    [LvaGatewayCapability.wpDebugRoutedMessage]: boolean;
+interface IAvaGatewaySettings {
+    [AvaGatewayCapability.wpDebugTelemetry]: boolean;
+    [AvaGatewayCapability.wpDebugRoutedMessage]: boolean;
 }
 
-const LvaGatewayEdgeInputs = {
+const AvaGatewayEdgeInputs = {
     CameraCommand: 'cameracommand',
-    LvaDiagnostics: 'lvaDiagnostics',
-    LvaOperational: 'lvaOperational',
-    LvaTelemetry: 'lvaTelemetry'
+    AvaDiagnostics: 'avaDiagnostics',
+    AvaOperational: 'avaOperational',
+    AvaTelemetry: 'avaTelemetry'
 };
 
-const LvaGatewayCommands = {
+const AvaGatewayCommands = {
     CreateCamera: 'createcamera',
     DeleteCamera: 'deletecamera',
     SendDeviceTelemetry: 'senddevicetelemetry',
@@ -206,9 +206,9 @@ export class CameraGatewayService {
     private healthCheckRetries: number = defaultHealthCheckRetries;
     private healthState = HealthState.Good;
     private healthCheckFailStreak = 0;
-    private moduleSettings: ILvaGatewaySettings = {
-        [LvaGatewayCapability.wpDebugTelemetry]: false,
-        [LvaGatewayCapability.wpDebugRoutedMessage]: false
+    private moduleSettings: IAvaGatewaySettings = {
+        [AvaGatewayCapability.wpDebugTelemetry]: false,
+        [AvaGatewayCapability.wpDebugRoutedMessage]: false
     };
     private appConfig: IAppConfig = {
         system: {
@@ -229,7 +229,7 @@ export class CameraGatewayService {
         },
         env: {
             onvifModuleId: '',
-            lvaEdgeModuleId: '',
+            avaEdgeModuleId: '',
             amsAccountName: ''
         }
     };
@@ -247,7 +247,7 @@ export class CameraGatewayService {
 
     @bind
     public debugTelemetry(): boolean {
-        return this.moduleSettings[LvaGatewayCapability.wpDebugTelemetry];
+        return this.moduleSettings[AvaGatewayCapability.wpDebugTelemetry];
     }
 
     @bind
@@ -272,8 +272,8 @@ export class CameraGatewayService {
                 const value = desiredChangedSettings[setting];
 
                 switch (setting) {
-                    case LvaGatewayCapability.wpDebugTelemetry:
-                    case LvaGatewayCapability.wpDebugRoutedMessage:
+                    case AvaGatewayCapability.wpDebugTelemetry:
+                    case AvaGatewayCapability.wpDebugRoutedMessage:
                         patchedProperties[setting] = this.moduleSettings[setting] = value || false;
                         break;
 
@@ -301,7 +301,7 @@ export class CameraGatewayService {
     @bind
     public async onHandleDownstreamMessages(inputName: string, message: IoTMessage): Promise<void> {
         try {
-            if (inputName === LvaGatewayEdgeInputs.LvaDiagnostics && !this.debugTelemetry()) {
+            if (inputName === AvaGatewayEdgeInputs.AvaDiagnostics && !this.debugTelemetry()) {
                 return;
             }
 
@@ -312,7 +312,7 @@ export class CameraGatewayService {
 
             const messageJson = JSON.parse(messageData);
 
-            if (this.moduleSettings[LvaGatewayCapability.wpDebugRoutedMessage] === true) {
+            if (this.moduleSettings[AvaGatewayCapability.wpDebugRoutedMessage] === true) {
                 if (message.properties?.propertyList) {
                     this.server.log([moduleName, 'info'], `Routed message properties: ${JSON.stringify(message.properties?.propertyList, null, 4)}`);
                 }
@@ -321,12 +321,12 @@ export class CameraGatewayService {
             }
 
             switch (inputName) {
-                case LvaGatewayEdgeInputs.CameraCommand: {
+                case AvaGatewayEdgeInputs.CameraCommand: {
                     const edgeInputCameraCommand = messageJson?.command;
                     const edgeInputCameraCommandData = messageJson?.data;
 
                     switch (edgeInputCameraCommand) {
-                        case LvaGatewayCommands.CreateCamera:
+                        case AvaGatewayCommands.CreateCamera:
                             await this.createAmsInferenceDevice({
                                 cameraId: edgeInputCameraCommandData?.cameraId,
                                 cameraName: edgeInputCameraCommandData?.cameraName,
@@ -337,15 +337,15 @@ export class CameraGatewayService {
                             });
                             break;
 
-                        case LvaGatewayCommands.DeleteCamera:
+                        case AvaGatewayCommands.DeleteCamera:
                             await this.amsInferenceDeviceOperation('DELETE_CAMERA', edgeInputCameraCommandData);
                             break;
 
-                        case LvaGatewayCommands.SendDeviceTelemetry:
+                        case AvaGatewayCommands.SendDeviceTelemetry:
                             await this.amsInferenceDeviceOperation('SEND_EVENT', edgeInputCameraCommandData);
                             break;
 
-                        case LvaGatewayCommands.SendDeviceInferences:
+                        case AvaGatewayCommands.SendDeviceInferences:
                             await this.amsInferenceDeviceOperation('SEND_INFERENCES', edgeInputCameraCommandData);
                             break;
 
@@ -357,27 +357,27 @@ export class CameraGatewayService {
                     break;
                 }
 
-                case LvaGatewayEdgeInputs.LvaDiagnostics:
-                case LvaGatewayEdgeInputs.LvaOperational:
-                case LvaGatewayEdgeInputs.LvaTelemetry: {
-                    const cameraId = AmsGraph.getCameraIdFromLvaMessage(message);
+                case AvaGatewayEdgeInputs.AvaDiagnostics:
+                case AvaGatewayEdgeInputs.AvaOperational:
+                case AvaGatewayEdgeInputs.AvaTelemetry: {
+                    const cameraId = AvaPipeline.getCameraIdFromAvaMessage(message);
                     if (!cameraId) {
-                        this.server.log([moduleName, 'error'], `Received LvaDiagnostics telemetry but no cameraId found in subject`);
-                        this.server.log([moduleName, 'error'], `LvaDiagnostics eventType: ${AmsGraph.getLvaMessageProperty(message, 'eventType')}`);
-                        this.server.log([moduleName, 'error'], `LvaDiagnostics subject: ${AmsGraph.getLvaMessageProperty(message, 'subject')}`);
+                        this.server.log([moduleName, 'error'], `Received AvaDiagnostics telemetry but no cameraId found in subject`);
+                        this.server.log([moduleName, 'error'], `AvaDiagnostics eventType: ${AvaPipeline.getAvaMessageProperty(message, 'eventType')}`);
+                        this.server.log([moduleName, 'error'], `AvaDiagnostics subject: ${AvaPipeline.getAvaMessageProperty(message, 'subject')}`);
                         break;
                     }
 
                     const amsInferenceDevice = this.amsInferenceDeviceMap.get(cameraId);
                     if (!amsInferenceDevice) {
-                        this.server.log([moduleName, 'error'], `Received Lva Edge telemetry for cameraId: "${cameraId}" but that device does not exist in Lva Gateway`);
+                        this.server.log([moduleName, 'error'], `Received Ava Edge telemetry for cameraId: "${cameraId}" but that device does not exist in Ava Gateway`);
                     }
                     else {
-                        if (inputName === LvaGatewayEdgeInputs.LvaOperational || inputName === LvaGatewayEdgeInputs.LvaDiagnostics) {
-                            await amsInferenceDevice.sendLvaEvent(AmsGraph.getLvaMessageProperty(message, 'eventType'), messageJson);
+                        if (inputName === AvaGatewayEdgeInputs.AvaOperational || inputName === AvaGatewayEdgeInputs.AvaDiagnostics) {
+                            await amsInferenceDevice.sendAvaEvent(AvaPipeline.getAvaMessageProperty(message, 'eventType'), messageJson);
                         }
                         else {
-                            await amsInferenceDevice.processLvaInferences(messageJson.inferences);
+                            await amsInferenceDevice.processAvaInferences(messageJson.inferences);
                         }
                     }
 
@@ -409,14 +409,14 @@ export class CameraGatewayService {
             ...hostConfig,
             env: {
                 onvifModuleId: process.env.onvifModuleId || '',
-                lvaEdgeModuleId: process.env.lvaEdgeModuleId || '',
+                avaEdgeModuleId: process.env.avaEdgeModuleId || '',
                 amsAccountName: process.env.amsAccountName || ''
             }
         };
 
-        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayCapability.cmAddCamera, this.addCameraDirectMethod);
-        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayCapability.cmDeleteCamera, this.deleteCameraDirectMethod);
-        this.server.settings.app.iotCentralModule.addDirectMethod(LvaGatewayCapability.cmRestartModule, this.restartModuleDirectMethod);
+        this.server.settings.app.iotCentralModule.addDirectMethod(AvaGatewayCapability.cmAddCamera, this.addCameraDirectMethod);
+        this.server.settings.app.iotCentralModule.addDirectMethod(AvaGatewayCapability.cmDeleteCamera, this.deleteCameraDirectMethod);
+        this.server.settings.app.iotCentralModule.addDirectMethod(AvaGatewayCapability.cmRestartModule, this.restartModuleDirectMethod);
 
         await this.server.settings.app.iotCentralModule.updateModuleProperties({
             ...this.appConfig.device,
@@ -427,9 +427,9 @@ export class CameraGatewayService {
         });
 
         await this.server.settings.app.iotCentralModule.sendMeasurement({
-            [LvaGatewayCapability.stIoTCentralClientState]: IoTCentralClientState.Connected,
-            [LvaGatewayCapability.stModuleState]: ModuleState.Active,
-            [LvaGatewayCapability.evModuleStarted]: 'Module initialization'
+            [AvaGatewayCapability.stIoTCentralClientState]: IoTCentralClientState.Connected,
+            [AvaGatewayCapability.stModuleState]: ModuleState.Active,
+            [AvaGatewayCapability.evModuleStarted]: 'Module initialization'
         }, iotcOutput);
 
         await this.recreateExistingDevices();
@@ -461,8 +461,8 @@ export class CameraGatewayService {
                 const systemProperties = await this.getSystemProperties();
                 const freeMemory = systemProperties?.freeMemory || 0;
 
-                healthTelemetry[LvaGatewayCapability.tlFreeMemory] = freeMemory;
-                healthTelemetry[LvaGatewayCapability.tlConnectedCameras] = this.amsInferenceDeviceMap.size;
+                healthTelemetry[AvaGatewayCapability.tlFreeMemory] = freeMemory;
+                healthTelemetry[AvaGatewayCapability.tlConnectedCameras] = this.amsInferenceDeviceMap.size;
 
                 // TODO:
                 // Find the right threshold for this metric
@@ -470,7 +470,7 @@ export class CameraGatewayService {
                     healthState = HealthState.Critical;
                 }
 
-                healthTelemetry[LvaGatewayCapability.tlSystemHeartbeat] = healthState;
+                healthTelemetry[AvaGatewayCapability.tlSystemHeartbeat] = healthState;
 
                 await this.server.settings.app.iotCentralModule.sendMeasurement(healthTelemetry, iotcOutput);
             }
@@ -504,9 +504,9 @@ export class CameraGatewayService {
 
         try {
             await this.server.settings.app.iotCentralModule.sendMeasurement({
-                [LvaGatewayCapability.evModuleRestart]: reason,
-                [LvaGatewayCapability.stModuleState]: ModuleState.Inactive,
-                [LvaGatewayCapability.evModuleStopped]: 'Module restart'
+                [AvaGatewayCapability.evModuleRestart]: reason,
+                [AvaGatewayCapability.stModuleState]: ModuleState.Inactive,
+                [AvaGatewayCapability.evModuleStopped]: 'Module restart'
             }, iotcOutput);
 
             if (timeout > 0) {
@@ -564,8 +564,8 @@ export class CameraGatewayService {
                     json: true
                 });
 
-            if (!devicePropertiesResponse[LvaOperationsInterfaceId]) {
-                this.server.log([moduleName, 'error'], `Could not find LVA interface(s) on device id: ${deviceId}`);
+            if (!devicePropertiesResponse[AvaOperationsInterfaceId]) {
+                this.server.log([moduleName, 'error'], `Could not find AVA interface(s) on device id: ${deviceId}`);
                 return;
             }
 
@@ -575,7 +575,7 @@ export class CameraGatewayService {
                 ipAddress: devicePropertiesResponse[OnvifCameraCapability.rpIpAddress],
                 onvifUsername: devicePropertiesResponse[OnvifCameraCapability.rpOnvifUsername],
                 onvifPassword: devicePropertiesResponse[OnvifCameraCapability.rpOnvifPassword],
-                detectionType: devicePropertiesResponse[LvaCameraDeviceTypeMap[AddCameraDetectionType.Object].templateId]
+                detectionType: devicePropertiesResponse[AvaCameraDeviceTypeMap[AddCameraDetectionType.Object].templateId]
                     ? AddCameraDetectionType.Object
                     : AddCameraDetectionType.Motion
             };
@@ -671,7 +671,7 @@ export class CameraGatewayService {
                 this.amsInferenceDeviceMap.set(cameraInfo.cameraId, deviceProvisionResult.amsInferenceDevice);
 
                 await this.server.settings.app.iotCentralModule.sendMeasurement({
-                    [LvaGatewayCapability.evCreateCamera]: cameraInfo.cameraId
+                    [AvaGatewayCapability.evCreateCamera]: cameraInfo.cameraId
                 }, iotcOutput);
 
                 this.server.log([moduleName, 'info'], `Succesfully provisioned camera device with id: ${cameraInfo.cameraId}`);
@@ -700,8 +700,8 @@ export class CameraGatewayService {
         };
 
         try {
-            const amsGraph = await AmsGraph.createAmsGraph(this.server.settings.app.iotCentralModule, cameraInfo);
-            this.server.log([moduleName, 'info'], `Create AmsGraph succeeded: ${this.appConfig.env.amsAccountName}`);
+            const avaPipeline = await AvaPipeline.createAvaPipeline(this.server.settings.app.iotCentralModule, cameraInfo);
+            this.server.log([moduleName, 'info'], `Create AvaPipeline succeeded: ${this.appConfig.env.amsAccountName}`);
 
             const deviceKey = this.computeDeviceKey(cameraInfo.cameraId, this.appConfig.iotCentral.deviceKey);
             this.server.log([moduleName, 'info'], `Computed deviceKey: ${deviceKey}`);
@@ -716,7 +716,7 @@ export class CameraGatewayService {
             this.server.log([moduleName, 'info'], `Created provisioningClient succeeded`);
 
             const provisioningPayload = {
-                iotcModelId: LvaCameraDeviceTypeMap[cameraInfo.detectionType].templateId,
+                iotcModelId: AvaCameraDeviceTypeMap[cameraInfo.detectionType].templateId,
                 iotcGateway: {
                     iotcGatewayId: this.server.settings.app.iotCentralModule.deviceId,
                     iotcModuleId: this.server.settings.app.iotCentralModule.moduleId
@@ -745,7 +745,7 @@ export class CameraGatewayService {
             deviceProvisionResult.dpsProvisionMessage = `IoT Central successfully provisioned device: ${cameraInfo.cameraId}`;
             deviceProvisionResult.dpsHubConnectionString = dpsConnectionString;
 
-            deviceProvisionResult.amsInferenceDevice = new LvaCameraDeviceTypeMap[cameraInfo.detectionType].deviceClass(this.server.settings.app.iotCentralModule, amsGraph, cameraInfo);
+            deviceProvisionResult.amsInferenceDevice = new AvaCameraDeviceTypeMap[cameraInfo.detectionType].deviceClass(this.server.settings.app.iotCentralModule, avaPipeline, cameraInfo);
 
             const { clientConnectionStatus, clientConnectionMessage } = await deviceProvisionResult.amsInferenceDevice.connectDeviceClient(deviceProvisionResult.dpsHubConnectionString);
 
@@ -789,7 +789,7 @@ export class CameraGatewayService {
                     });
 
                 await this.server.settings.app.iotCentralModule.sendMeasurement({
-                    [LvaGatewayCapability.evDeleteCamera]: cameraId
+                    [AvaGatewayCapability.evDeleteCamera]: cameraId
                 }, iotcOutput);
 
                 this.server.log([moduleName, 'info'], `Succesfully de-provisioned camera device with id: ${cameraId}`);
@@ -812,7 +812,7 @@ export class CameraGatewayService {
     }
 
     private async amsInferenceDeviceOperation(deviceOperation: DeviceOperation, cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
-        this.server.log([moduleName, 'info'], `Processing LVA Edge gateway operation: ${JSON.stringify(cameraOperationInfo, null, 4)}`);
+        this.server.log([moduleName, 'info'], `Processing AVA Edge gateway operation: ${JSON.stringify(cameraOperationInfo, null, 4)}`);
 
         const operationResult = {
             status: false,
@@ -852,11 +852,11 @@ export class CameraGatewayService {
                 break;
 
             case 'SEND_EVENT':
-                await amsInferenceDevice.sendLvaEvent(operationInfo);
+                await amsInferenceDevice.sendAvaEvent(operationInfo);
                 break;
 
             case 'SEND_INFERENCES':
-                await amsInferenceDevice.processLvaInferences(operationInfo);
+                await amsInferenceDevice.processAvaInferences(operationInfo);
                 break;
 
             default:
@@ -872,7 +872,7 @@ export class CameraGatewayService {
 
     @bind
     private async addCameraDirectMethod(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
-        this.server.log([moduleName, 'info'], `${LvaGatewayCapability.cmAddCamera} command received`);
+        this.server.log([moduleName, 'info'], `${AvaGatewayCapability.cmAddCamera} command received`);
 
         const addCameraResponse = {
             [CommandResponseParams.StatusCode]: 200,
@@ -910,7 +910,7 @@ export class CameraGatewayService {
             addCameraResponse[CommandResponseParams.Message] = provisionResult.clientConnectionMessage || provisionResult.dpsProvisionMessage;
         }
         catch (ex) {
-            this.server.log([moduleName, 'error'], `Error creating LVA Edge gateway camera device: ${ex.message}`);
+            this.server.log([moduleName, 'error'], `Error creating AVA Edge gateway camera device: ${ex.message}`);
 
             addCameraResponse[CommandResponseParams.StatusCode] = 500;
             addCameraResponse[CommandResponseParams.Message] = `Error creating camera device ${cameraInfo.cameraId}`;
@@ -921,7 +921,7 @@ export class CameraGatewayService {
 
     @bind
     private async deleteCameraDirectMethod(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
-        this.server.log([moduleName, 'info'], `${LvaGatewayCapability.cmDeleteCamera} command received`);
+        this.server.log([moduleName, 'info'], `${AvaGatewayCapability.cmDeleteCamera} command received`);
 
         const deleteCameraResponse = {
             [CommandResponseParams.StatusCode]: 200,
@@ -953,7 +953,7 @@ export class CameraGatewayService {
             }
         }
         catch (ex) {
-            this.server.log([moduleName, 'error'], `Error deleting LVA Edge gateway camera device: ${ex.message}`);
+            this.server.log([moduleName, 'error'], `Error deleting AVA Edge gateway camera device: ${ex.message}`);
 
             deleteCameraResponse[CommandResponseParams.StatusCode] = 500;
             deleteCameraResponse[CommandResponseParams.Message] = `Error deprovisioning camera device ${cameraId}`;
@@ -964,7 +964,7 @@ export class CameraGatewayService {
 
     @bind
     private async restartModuleDirectMethod(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
-        this.server.log([moduleName, 'info'], `${LvaGatewayCapability.cmRestartModule} command received`);
+        this.server.log([moduleName, 'info'], `${AvaGatewayCapability.cmRestartModule} command received`);
 
         try {
             // sending response before processing, since this is a restart request
@@ -977,7 +977,7 @@ export class CameraGatewayService {
             await this.restartModule(commandRequest?.payload?.[RestartModuleCommandRequestParams.Timeout] || 0, 'RestartModule command received');
         }
         catch (ex) {
-            this.server.log([moduleName, 'error'], `Error sending response for ${LvaGatewayCapability.cmRestartModule} command: ${ex.message}`);
+            this.server.log([moduleName, 'error'], `Error sending response for ${AvaGatewayCapability.cmRestartModule} command: ${ex.message}`);
 
             await commandResponse.send(200, {
                 [CommandResponseParams.StatusCode]: 500,

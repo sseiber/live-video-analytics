@@ -2,8 +2,8 @@
     "@apiVersion": "2.0",
     "name": "",
     "properties": {
-        "description": "Object detection graph using Yolo3 through HTTP Extension",
-        "topologyName": "LvaIotcObjectDetection",
+        "description": "Object detection pipeline using Yolo3 through HTTP Extension",
+        "topologyName": "AvaIotcObjectDetection",
         "parameters": [
             {
                 "name": "rtspUrl",
