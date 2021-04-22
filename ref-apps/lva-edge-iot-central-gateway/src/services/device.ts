@@ -128,7 +128,7 @@ interface IAiInferenceSettings {
     [AiInferenceCapability.wpInferenceTimeout]: number;
 }
 
-export abstract class AmsCameraDevice {
+export abstract class AvaCameraDevice {
     protected iotCentralModule: IIoTCentralModule;
     protected envConfig: IEnvConfig;
     protected avaPipeline: AvaPipeline;

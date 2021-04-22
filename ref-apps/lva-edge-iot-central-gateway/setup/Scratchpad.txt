@@ -1,6 +1,6 @@
 *************************************************************************
 * Download and use this scratchpad to collect all the IDs, secrets, and
-* relevant resource information from AMS and IoT Central to complete the
+* relevant resource information from AVA and IoT Central to complete the
 * Live Video Analytics deployment.
 *
 * Each section has a reference to the tutorial, section, and paragraph

@@ -3,9 +3,9 @@ import { Server } from '@hapi/hapi';
 import { StorageService } from './storage';
 import { HealthState } from './health';
 import { AvaPipeline } from './avaPipeline';
-import { AmsCameraDevice, OnvifCameraCapability } from './device';
-import { AmsMotionDetectorDevice } from './motionDetectorDevice';
-import { AmsObjectDetectorDevice } from './objectDetectorDevice';
+import { AvaCameraDevice, OnvifCameraCapability } from './device';
+import { AvaMotionDetectorDevice } from './motionDetectorDevice';
+import { AvaObjectDetectorDevice } from './objectDetectorDevice';
 import { SymmetricKeySecurityClient } from 'azure-iot-security-symmetric-key';
 import { ProvisioningDeviceClient } from 'azure-iot-provisioning-device';
 import { Mqtt as ProvisioningTransport } from 'azure-iot-provisioning-device-mqtt';
@@ -35,7 +35,7 @@ type DeviceOperation = 'DELETE_CAMERA' | 'SEND_EVENT' | 'SEND_INFERENCES';
 export interface IEnvConfig {
     onvifModuleId: string;
     avaEdgeModuleId: string;
-    amsAccountName: string;
+    avaAccountName: string;
 }
 
 interface IAppConfig {
@@ -78,7 +78,7 @@ interface IProvisionResult {
     dpsHubConnectionString: string;
     clientConnectionStatus: boolean;
     clientConnectionMessage: string;
-    amsInferenceDevice: AmsCameraDevice;
+    avaInferenceDevice: AvaCameraDevice;
 }
 
 interface IDeviceOperationResult {
@@ -132,11 +132,11 @@ enum AddCameraDetectionType {
 const AvaCameraDeviceTypeMap = {
     [AddCameraDetectionType.Object]: {
         templateId: 'dtmi:com:azuremedia:model:AvaEdgeObjectDetectorDevice;1',
-        deviceClass: AmsObjectDetectorDevice
+        deviceClass: AvaObjectDetectorDevice
     },
     [AddCameraDetectionType.Motion]: {
         templateId: 'dtmi:com:azuremedia:model:AvaEdgeMotionDetectorDevice;1',
-        deviceClass: AmsMotionDetectorDevice
+        deviceClass: AvaMotionDetectorDevice
     }
 };
 const AvaOperationsInterfaceId = 'dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeOperations;1';
@@ -230,10 +230,10 @@ export class CameraGatewayService {
         env: {
             onvifModuleId: '',
             avaEdgeModuleId: '',
-            amsAccountName: ''
+            avaAccountName: ''
         }
     };
-    private amsInferenceDeviceMap = new Map<string, AmsCameraDevice>();
+    private avaInferenceDeviceMap = new Map<string, AvaCameraDevice>();
     private dpsProvisioningHost: string = defaultDpsProvisioningHost;
 
     public async init(): Promise<void> {
@@ -327,7 +327,7 @@ export class CameraGatewayService {
 
                     switch (edgeInputCameraCommand) {
                         case AvaGatewayCommands.CreateCamera:
-                            await this.createAmsInferenceDevice({
+                            await this.createAvaInferenceDevice({
                                 cameraId: edgeInputCameraCommandData?.cameraId,
                                 cameraName: edgeInputCameraCommandData?.cameraName,
                                 ipAddress: edgeInputCameraCommandData?.ipAddress,
@@ -338,15 +338,15 @@ export class CameraGatewayService {
                             break;
 
                         case AvaGatewayCommands.DeleteCamera:
-                            await this.amsInferenceDeviceOperation('DELETE_CAMERA', edgeInputCameraCommandData);
+                            await this.avaInferenceDeviceOperation('DELETE_CAMERA', edgeInputCameraCommandData);
                             break;
 
                         case AvaGatewayCommands.SendDeviceTelemetry:
-                            await this.amsInferenceDeviceOperation('SEND_EVENT', edgeInputCameraCommandData);
+                            await this.avaInferenceDeviceOperation('SEND_EVENT', edgeInputCameraCommandData);
                             break;
 
                         case AvaGatewayCommands.SendDeviceInferences:
-                            await this.amsInferenceDeviceOperation('SEND_INFERENCES', edgeInputCameraCommandData);
+                            await this.avaInferenceDeviceOperation('SEND_INFERENCES', edgeInputCameraCommandData);
                             break;
 
                         default:
@@ -368,16 +368,16 @@ export class CameraGatewayService {
                         break;
                     }
 
-                    const amsInferenceDevice = this.amsInferenceDeviceMap.get(cameraId);
-                    if (!amsInferenceDevice) {
+                    const avaInferenceDevice = this.avaInferenceDeviceMap.get(cameraId);
+                    if (!avaInferenceDevice) {
                         this.server.log([moduleName, 'error'], `Received Ava Edge telemetry for cameraId: "${cameraId}" but that device does not exist in Ava Gateway`);
                     }
                     else {
                         if (inputName === AvaGatewayEdgeInputs.AvaOperational || inputName === AvaGatewayEdgeInputs.AvaDiagnostics) {
-                            await amsInferenceDevice.sendAvaEvent(AvaPipeline.getAvaMessageProperty(message, 'eventType'), messageJson);
+                            await avaInferenceDevice.sendAvaEvent(AvaPipeline.getAvaMessageProperty(message, 'eventType'), messageJson);
                         }
                         else {
-                            await amsInferenceDevice.processAvaInferences(messageJson.inferences);
+                            await avaInferenceDevice.processAvaInferences(messageJson.inferences);
                         }
                     }
 
@@ -410,7 +410,7 @@ export class CameraGatewayService {
             env: {
                 onvifModuleId: process.env.onvifModuleId || '',
                 avaEdgeModuleId: process.env.avaEdgeModuleId || '',
-                amsAccountName: process.env.amsAccountName || ''
+                avaAccountName: process.env.avaAccountName || ''
             }
         };
 
@@ -436,19 +436,19 @@ export class CameraGatewayService {
     }
 
     public async createCamera(cameraInfo: ICameraDeviceProvisionInfo): Promise<IProvisionResult> {
-        return this.createAmsInferenceDevice(cameraInfo);
+        return this.createAvaInferenceDevice(cameraInfo);
     }
 
     public async deleteCamera(cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
-        return this.amsInferenceDeviceOperation('DELETE_CAMERA', cameraOperationInfo);
+        return this.avaInferenceDeviceOperation('DELETE_CAMERA', cameraOperationInfo);
     }
 
     public async sendCameraTelemetry(cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
-        return this.amsInferenceDeviceOperation('SEND_EVENT', cameraOperationInfo);
+        return this.avaInferenceDeviceOperation('SEND_EVENT', cameraOperationInfo);
     }
 
     public async sendCameraInferences(cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
-        return this.amsInferenceDeviceOperation('SEND_INFERENCES', cameraOperationInfo);
+        return this.avaInferenceDeviceOperation('SEND_INFERENCES', cameraOperationInfo);
     }
 
     @bind
@@ -462,7 +462,7 @@ export class CameraGatewayService {
                 const freeMemory = systemProperties?.freeMemory || 0;
 
                 healthTelemetry[AvaGatewayCapability.tlFreeMemory] = freeMemory;
-                healthTelemetry[AvaGatewayCapability.tlConnectedCameras] = this.amsInferenceDeviceMap.size;
+                healthTelemetry[AvaGatewayCapability.tlConnectedCameras] = this.avaInferenceDeviceMap.size;
 
                 // TODO:
                 // Find the right threshold for this metric
@@ -477,7 +477,7 @@ export class CameraGatewayService {
 
             this.healthState = healthState;
 
-            for (const device of this.amsInferenceDeviceMap) {
+            for (const device of this.avaInferenceDeviceMap) {
                 forget(device[1].getHealth);
             }
         }
@@ -614,7 +614,7 @@ export class CameraGatewayService {
                     if (cameraInfo) {
                         this.server.log([moduleName, 'info'], `Recreating device: ${device.id} - detectionType: ${cameraInfo.detectionType}`);
 
-                        await this.createAmsInferenceDevice(cameraInfo);
+                        await this.createAvaInferenceDevice(cameraInfo);
                     }
                 }
                 catch (ex) {
@@ -626,13 +626,13 @@ export class CameraGatewayService {
             this.server.log([moduleName, 'error'], `Failed to get device list: ${ex.message}`);
         }
 
-        // If there were errors, we may be in a bad state (e.g. an ams inference device exists
+        // If there were errors, we may be in a bad state (e.g. an ava inference device exists
         // but we were not able to re-connect to it's client interface). Consider setting the health
         // state to critical here to restart the gateway module.
     }
 
-    private async createAmsInferenceDevice(cameraInfo: ICameraDeviceProvisionInfo): Promise<IProvisionResult> {
-        this.server.log([moduleName, 'info'], `createAmsInferenceDevice - cameraId: ${cameraInfo.cameraId}, cameraName: ${cameraInfo.cameraName}, detectionType: ${cameraInfo.detectionType}`);
+    private async createAvaInferenceDevice(cameraInfo: ICameraDeviceProvisionInfo): Promise<IProvisionResult> {
+        this.server.log([moduleName, 'info'], `createAvaInferenceDevice - cameraId: ${cameraInfo.cameraId}, cameraName: ${cameraInfo.cameraName}, detectionType: ${cameraInfo.detectionType}`);
 
         let deviceProvisionResult: IProvisionResult = {
             dpsProvisionStatus: false,
@@ -640,7 +640,7 @@ export class CameraGatewayService {
             dpsHubConnectionString: '',
             clientConnectionStatus: false,
             clientConnectionMessage: '',
-            amsInferenceDevice: null
+            avaInferenceDevice: null
         };
 
         try {
@@ -665,10 +665,10 @@ export class CameraGatewayService {
                 return deviceProvisionResult;
             }
 
-            deviceProvisionResult = await this.createAndProvisionAmsInferenceDevice(cameraInfo);
+            deviceProvisionResult = await this.createAndProvisionAvaInferenceDevice(cameraInfo);
 
             if (deviceProvisionResult.dpsProvisionStatus === true && deviceProvisionResult.clientConnectionStatus === true) {
-                this.amsInferenceDeviceMap.set(cameraInfo.cameraId, deviceProvisionResult.amsInferenceDevice);
+                this.avaInferenceDeviceMap.set(cameraInfo.cameraId, deviceProvisionResult.avaInferenceDevice);
 
                 await this.server.settings.app.iotCentralModule.sendMeasurement({
                     [AvaGatewayCapability.evCreateCamera]: cameraInfo.cameraId
@@ -679,7 +679,7 @@ export class CameraGatewayService {
         }
         catch (ex) {
             deviceProvisionResult.dpsProvisionStatus = false;
-            deviceProvisionResult.dpsProvisionMessage = `Error while provisioning amsInferenceDevice: ${ex.message}`;
+            deviceProvisionResult.dpsProvisionMessage = `Error while provisioning avaInferenceDevice: ${ex.message}`;
 
             this.server.log([moduleName, 'error'], deviceProvisionResult.dpsProvisionMessage);
         }
@@ -687,7 +687,7 @@ export class CameraGatewayService {
         return deviceProvisionResult;
     }
 
-    private async createAndProvisionAmsInferenceDevice(cameraInfo: ICameraDeviceProvisionInfo): Promise<IProvisionResult> {
+    private async createAndProvisionAvaInferenceDevice(cameraInfo: ICameraDeviceProvisionInfo): Promise<IProvisionResult> {
         this.server.log([moduleName, 'info'], `Provisioning device - id: ${cameraInfo.cameraId}`);
 
         const deviceProvisionResult: IProvisionResult = {
@@ -696,12 +696,12 @@ export class CameraGatewayService {
             dpsHubConnectionString: '',
             clientConnectionStatus: false,
             clientConnectionMessage: '',
-            amsInferenceDevice: null
+            avaInferenceDevice: null
         };
 
         try {
             const avaPipeline = await AvaPipeline.createAvaPipeline(this.server.settings.app.iotCentralModule, cameraInfo);
-            this.server.log([moduleName, 'info'], `Create AvaPipeline succeeded: ${this.appConfig.env.amsAccountName}`);
+            this.server.log([moduleName, 'info'], `Create AvaPipeline succeeded: ${this.appConfig.env.avaAccountName}`);
 
             const deviceKey = this.computeDeviceKey(cameraInfo.cameraId, this.appConfig.iotCentral.deviceKey);
             this.server.log([moduleName, 'info'], `Computed deviceKey: ${deviceKey}`);
@@ -745,9 +745,9 @@ export class CameraGatewayService {
             deviceProvisionResult.dpsProvisionMessage = `IoT Central successfully provisioned device: ${cameraInfo.cameraId}`;
             deviceProvisionResult.dpsHubConnectionString = dpsConnectionString;
 
-            deviceProvisionResult.amsInferenceDevice = new AvaCameraDeviceTypeMap[cameraInfo.detectionType].deviceClass(this.server.settings.app.iotCentralModule, avaPipeline, cameraInfo);
+            deviceProvisionResult.avaInferenceDevice = new AvaCameraDeviceTypeMap[cameraInfo.detectionType].deviceClass(this.server.settings.app.iotCentralModule, avaPipeline, cameraInfo);
 
-            const { clientConnectionStatus, clientConnectionMessage } = await deviceProvisionResult.amsInferenceDevice.connectDeviceClient(deviceProvisionResult.dpsHubConnectionString);
+            const { clientConnectionStatus, clientConnectionMessage } = await deviceProvisionResult.avaInferenceDevice.connectDeviceClient(deviceProvisionResult.dpsHubConnectionString);
 
             this.server.log([moduleName, 'info'], `clientConnectionStatus: ${clientConnectionStatus}, clientConnectionMessage: ${clientConnectionMessage}`);
 
@@ -764,16 +764,16 @@ export class CameraGatewayService {
         return deviceProvisionResult;
     }
 
-    private async deprovisionAmsInferenceDevice(cameraId: string): Promise<boolean> {
+    private async deprovisionAvaInferenceDevice(cameraId: string): Promise<boolean> {
         this.server.log([moduleName, 'info'], `Deprovisioning device - id: ${cameraId}`);
 
         let result = false;
 
         try {
-            const amsInferenceDevice = this.amsInferenceDeviceMap.get(cameraId);
-            if (amsInferenceDevice) {
-                await amsInferenceDevice.deleteCamera();
-                this.amsInferenceDeviceMap.delete(cameraId);
+            const avaInferenceDevice = this.avaInferenceDeviceMap.get(cameraId);
+            if (avaInferenceDevice) {
+                await avaInferenceDevice.deleteCamera();
+                this.avaInferenceDeviceMap.delete(cameraId);
             }
 
             this.server.log([moduleName, 'info'], `Deleting IoT Central device instance: ${cameraId}`);
@@ -811,7 +811,7 @@ export class CameraGatewayService {
         return crypto.createHmac('SHA256', Buffer.from(masterKey, 'base64')).update(deviceId, 'utf8').digest('base64');
     }
 
-    private async amsInferenceDeviceOperation(deviceOperation: DeviceOperation, cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
+    private async avaInferenceDeviceOperation(deviceOperation: DeviceOperation, cameraOperationInfo: ICameraOperationInfo): Promise<IDeviceOperationResult> {
         this.server.log([moduleName, 'info'], `Processing AVA Edge gateway operation: ${JSON.stringify(cameraOperationInfo, null, 4)}`);
 
         const operationResult = {
@@ -828,8 +828,8 @@ export class CameraGatewayService {
             return operationResult;
         }
 
-        const amsInferenceDevice = this.amsInferenceDeviceMap.get(cameraId);
-        if (!amsInferenceDevice) {
+        const avaInferenceDevice = this.avaInferenceDeviceMap.get(cameraId);
+        if (!avaInferenceDevice) {
             operationResult.message = `No device exists with cameraId: ${cameraId}`;
 
             this.server.log([moduleName, 'error'], operationResult.message);
@@ -848,15 +848,15 @@ export class CameraGatewayService {
 
         switch (deviceOperation) {
             case 'DELETE_CAMERA':
-                await this.deprovisionAmsInferenceDevice(cameraId);
+                await this.deprovisionAvaInferenceDevice(cameraId);
                 break;
 
             case 'SEND_EVENT':
-                await amsInferenceDevice.sendAvaEvent(operationInfo);
+                await avaInferenceDevice.sendAvaEvent(operationInfo);
                 break;
 
             case 'SEND_INFERENCES':
-                await amsInferenceDevice.processAvaInferences(operationInfo);
+                await avaInferenceDevice.processAvaInferences(operationInfo);
                 break;
 
             default:
@@ -905,7 +905,7 @@ export class CameraGatewayService {
                 return;
             }
 
-            const provisionResult = await this.createAmsInferenceDevice(cameraInfo);
+            const provisionResult = await this.createAvaInferenceDevice(cameraInfo);
 
             addCameraResponse[CommandResponseParams.Message] = provisionResult.clientConnectionMessage || provisionResult.dpsProvisionMessage;
         }
@@ -942,7 +942,7 @@ export class CameraGatewayService {
                 return;
             }
 
-            const deleteResult = await this.deprovisionAmsInferenceDevice(cameraId);
+            const deleteResult = await this.deprovisionAvaInferenceDevice(cameraId);
 
             if (deleteResult) {
                 deleteCameraResponse[CommandResponseParams.Message] = `Finished deprovisioning camera device ${cameraId}`;

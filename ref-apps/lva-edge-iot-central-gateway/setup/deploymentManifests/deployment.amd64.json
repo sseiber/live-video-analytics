@@ -49,7 +49,7 @@
                             "avaEdgeModuleId": {
                                 "value": "AvaEdge"
                             },
-                            "amsAccountName": {
+                            "avaAccountName": {
                                 "value": "lvaiotcgateway"
                             },
                             "sampleImage_analyze": {
@@ -127,8 +127,8 @@
                 "schemaVersion": "1.0",
                 "routes": {
                     "AvaSignalGateTrigger": "FROM /messages/modules/AvaEdgeGatewayModule/outputs/avaTrigger INTO BrokeredEndpoint(\"/modules/AvaEdge/inputs/avaTrigger\")",
-                    "AvaDiagnosticsForwarder": "FROM /messages/modules/AvaEdge/outputs/AmsDiagnostics INTO BrokeredEndpoint(\"/modules/AvaEdgeGatewayModule/inputs/avaDiagnostics\")",
-                    "AvaOperationsForwarder": "FROM /messages/modules/AvaEdge/outputs/AmsOperational INTO BrokeredEndpoint(\"/modules/AvaEdgeGatewayModule/inputs/avaOperational\")",
+                    "AvaDiagnosticsForwarder": "FROM /messages/modules/AvaEdge/outputs/AvaDiagnostics INTO BrokeredEndpoint(\"/modules/AvaEdgeGatewayModule/inputs/avaDiagnostics\")",
+                    "AvaOperationsForwarder": "FROM /messages/modules/AvaEdge/outputs/AvaOperational INTO BrokeredEndpoint(\"/modules/AvaEdgeGatewayModule/inputs/avaOperational\")",
                     "AvaTelemetryForwarder": "FROM /messages/modules/AvaEdge/outputs/avaTelemetry INTO BrokeredEndpoint(\"/modules/AvaEdgeGatewayModule/inputs/avaTelemetry\")",
                     "AvaEdgeGatewayModuleOutput": "FROM /messages/modules/AvaEdgeGatewayModule/outputs/iotc INTO $upstream"
                 },
@@ -153,8 +153,8 @@
                 "aadServicePrincipalSecret": "<FROM_AZURE_PORTAL>",
                 "aadResourceId": "https://management.core.windows.net/",
                 "armEndpoint": "https://management.azure.com/",
-                "diagnosticsEventsOutputName": "AmsDiagnostics",
-                "operationalEventsOutputName": "AmsOperational",
+                "diagnosticsEventsOutputName": "AvaDiagnostics",
+                "operationalEventsOutputName": "AvaOperational",
                 "logLevel": "Information",
                 "logCategories": "Application,Event",
                 "AllowUnsecuredEndpoints": "true",

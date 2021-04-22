@@ -4,7 +4,7 @@ import { AvaPipeline } from './avaPipeline';
 import {
     OnvifCameraCapability,
     AiInferenceCapability,
-    AmsCameraDevice
+    AvaCameraDevice
 } from './device';
 import * as moment from 'moment';
 import { bind, emptyObj } from '../utils';
@@ -35,7 +35,7 @@ interface IMotionDetectorSettings {
     [MotionDetectorCapability.wpSensitivity]: MotionDetectorSensitivity;
 }
 
-export class AmsMotionDetectorDevice extends AmsCameraDevice {
+export class AvaMotionDetectorDevice extends AvaCameraDevice {
     private motionDetectorSettings: IMotionDetectorSettings = {
         [MotionDetectorCapability.wpSensitivity]: MotionDetectorSensitivity.Medium
     };

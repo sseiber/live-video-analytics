@@ -4,7 +4,7 @@ import { AvaPipeline } from './avaPipeline';
 import {
     OnvifCameraCapability,
     AiInferenceCapability,
-    AmsCameraDevice
+    AvaCameraDevice
 } from './device';
 import * as moment from 'moment';
 import { bind, emptyObj } from '../utils';
@@ -41,7 +41,7 @@ interface IObjectDetectorSettings {
     [ObjectDetectorCapability.wpInferenceFps]: number;
 }
 
-export class AmsObjectDetectorDevice extends AmsCameraDevice {
+export class AvaObjectDetectorDevice extends AvaCameraDevice {
     private objectDetectorSettings: IObjectDetectorSettings = {
         [ObjectDetectorCapability.wpDetectionClasses]: defaultDetectionClass,
         [ObjectDetectorCapability.wpConfidenceThreshold]: defaultConfidenceThreshold,

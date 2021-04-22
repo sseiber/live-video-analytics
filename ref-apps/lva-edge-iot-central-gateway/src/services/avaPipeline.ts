@@ -63,7 +63,7 @@ export class AvaPipeline {
     private topology: any;
 
     private rtspUrl: string;
-    private amsAssetName: string;
+    private avaAssetName: string;
     private instanceName: any;
     private topologyName: any;
 
@@ -79,7 +79,7 @@ export class AvaPipeline {
         this.topology = topology;
 
         this.rtspUrl = '';
-        this.amsAssetName = '';
+        this.avaAssetName = '';
         this.instanceName = {
             ['@apiVersion']: instance['@apiVersion'],
             name: instance.name
@@ -191,7 +191,7 @@ export class AvaPipeline {
             videoPlaybackHost = videoPlaybackHost.slice(0, -1);
         }
 
-        return `${videoPlaybackHost}/ampplayer?ac=${this.envConfig.amsAccountName}&an=${this.amsAssetName}&st=${startTime.format('YYYY-MM-DDTHH:mm:ss[Z]')}&du=${duration}`;
+        return `${videoPlaybackHost}/ampplayer?ac=${this.envConfig.avaAccountName}&an=${this.avaAssetName}&st=${startTime.format('YYYY-MM-DDTHH:mm:ss[Z]')}&du=${duration}`;
     }
 
     private async resolveOnvifRtspConnection(mediaProfileToken: string): Promise<boolean> {
@@ -231,8 +231,8 @@ export class AvaPipeline {
     }
 
     private async setInstance(pipelineParams: any): Promise<boolean> {
-        this.amsAssetName = pipelineParams.assetName;
-        this.setParam('assetName', this.amsAssetName);
+        this.avaAssetName = pipelineParams.assetName;
+        this.setParam('assetName', this.avaAssetName);
 
         this.setParam('rtspUrl', this.rtspUrl);
         this.setParam('rtspAuthUsername', this.cameraInfo.onvifUsername);
