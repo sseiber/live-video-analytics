@@ -382,29 +382,10 @@
                             },
                             {
                                 "displayName": {
-                                    "en": "Detection Type"
+                                    "en": "AVA Pipeline Name"
                                 },
-                                "name": "AddCameraRequestParams_DetectionType",
-                                "schema": {
-                                    "@type": "Enum",
-                                    "valueSchema": "string",
-                                    "enumValues": [
-                                        {
-                                            "displayName": {
-                                                "en": "Motion Detection"
-                                            },
-                                            "enumValue": "motion",
-                                            "name": "DetectionTypeEnum_Motion"
-                                        },
-                                        {
-                                            "displayName": {
-                                                "en": "Object Detection"
-                                            },
-                                            "enumValue": "object",
-                                            "name": "DetectionTypeEnum_Object"
-                                        }
-                                    ]
-                                }
+                                "name": "AddCameraRequestParams_AvaPipelineName",
+                                "schema": "string"
                             }
                         ]
                     }

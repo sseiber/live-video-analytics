@@ -27,7 +27,7 @@ export class CameraGatewayRoutes extends RoutePlugin {
                 ipAddress: (request.payload as any)?.ipAddress,
                 onvifUsername: (request.payload as any)?.onvifUsername,
                 onvifPassword: (request.payload as any)?.onvifPassword,
-                detectionType: (request.payload as any)?.detectionType || 'person'
+                avaPipelineName: (request.payload as any)?.avaPipelineName
             };
 
             if (!cameraInfo.cameraId
@@ -35,7 +35,7 @@ export class CameraGatewayRoutes extends RoutePlugin {
                 || !cameraInfo.ipAddress
                 || !cameraInfo.onvifUsername
                 || !cameraInfo.onvifPassword
-                || !cameraInfo.detectionType
+                || !cameraInfo.avaPipelineName
             ) {
                 throw boom_badRequest('Missing parameters (cameraId, cameraName, detectionType)');
             }

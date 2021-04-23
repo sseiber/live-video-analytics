@@ -1,58 +1,30 @@
 [
     {
-        "@id": "dtmi:com:azuremedia:model:AvaEdgeObjectDetectorDevice;1",
+        "@id": "dtmi:com:azuremedia:model:AvaEdgeDevice;1",
         "@context": [
             "dtmi:iotcentral:context;2",
             "dtmi:dtdl:context;2"
         ],
         "@type": "Interface",
         "displayName": {
-            "en": "AVA Edge Object Detector Device"
+            "en": "AVA Edge Motion Detector Device"
         },
-        "description": "AVA Edge Object Detector Device",
+        "description": "AVA Edge Motion Detector Device",
         "extends": [
-            "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:DeviceInformation;1",
-            "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:OnvifCamera;1",
-            "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AiInference;1",
-            "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeOperations;1",
-            "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeDiagnostics;1"
+            "dtmi:com:azuremedia:AvaEdgeDevice:DeviceInformation;1",
+            "dtmi:com:azuremedia:AvaEdgeDevice:OnvifCamera;1",
+            "dtmi:com:azuremedia:AvaEdgeDevice:AiInference;1",
+            "dtmi:com:azuremedia:AvaEdgeDevice:AvaEdgeOperations;1",
+            "dtmi:com:azuremedia:AvaEdgeDevice:AvaEdgeDiagnostics;1"
         ],
-        "contents": [
-            {
-                "@type": "Property",
-                "displayName": {
-                    "en": "Detection Classes"
-                },
-                "name": "wpDetectionClasses",
-                "writable": true,
-                "schema": "string"
-            },
-            {
-                "@type": "Property",
-                "displayName": {
-                    "en": "Confidence Threshold"
-                },
-                "name": "wpConfidenceThreshold",
-                "writable": true,
-                "schema": "double"
-            },
-            {
-                "@type": "Property",
-                "displayName": {
-                    "en": "Inference Frame Sample Rate (fps)"
-                },
-                "name": "wpInferenceFps",
-                "writable": true,
-                "schema": "integer"
-            }
-        ]
+        "contents": []
     },
     {
         "@context": [
             "dtmi:iotcentral:context;2",
             "dtmi:dtdl:context;2"
         ],
-        "@id": "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:DeviceInformation;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeDevice:DeviceInformation;1",
         "@type": "Interface",
         "displayName": {
             "en": "Onvif Camera Device Information Interface"
@@ -104,7 +76,28 @@
                     "en": "Media Profile 1"
                 },
                 "name": "rpMediaProfile1",
-                "schema": "string"
+                "schema": {
+                    "@type": "Object",
+                    "displayName": {
+                        "en": "Media Profile 1"
+                    },
+                    "fields": [
+                        {
+                            "displayName": {
+                                "en": "Media Profile Name"
+                            },
+                            "name": "mediaProfile1Name",
+                            "schema": "string"
+                        },
+                        {
+                            "displayName": {
+                                "en": "Media Profile Token"
+                            },
+                            "name": "mediaProfile1Token",
+                            "schema": "string"
+                        }
+                    ]
+                }
             },
             {
                 "@type": "Property",
@@ -112,12 +105,33 @@
                     "en": "Media Profile 2"
                 },
                 "name": "rpMediaProfile2",
-                "schema": "string"
+                "schema": {
+                    "@type": "Object",
+                    "displayName": {
+                        "en": "Media Profile 2"
+                    },
+                    "fields": [
+                        {
+                            "displayName": {
+                                "en": "Media Profile Name"
+                            },
+                            "name": "mediaProfile2Name",
+                            "schema": "string"
+                        },
+                        {
+                            "displayName": {
+                                "en": "Media Profile Token"
+                            },
+                            "name": "mediaProfile2Token",
+                            "schema": "string"
+                        }
+                    ]
+                }
             }
         ]
     },
     {
-        "@id": "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:OnvifCamera;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeDevice:OnvifCamera;1",
         "@context": "dtmi:dtdl:context;2",
         "@type": "Interface",
         "displayName": {
@@ -227,11 +241,41 @@
             {
                 "@type": "Property",
                 "displayName": {
+                    "en": "AVA Pipeline Name"
+                },
+                "name": "rpAvaPipelineName",
+                "schema": "string"
+            },
+            {
+                "@type": "Property",
+                "displayName": {
                     "en": "Onvif Media Profile"
                 },
-                "name": "wpOnvifMediaProfile",
+                "name": "wpOnvifMediaProfileSelector",
                 "writable": true,
-                "schema": "string"
+                "schema": {
+                    "@type": "Enum",
+                    "displayName": {
+                        "en": "Enum"
+                    },
+                    "valueSchema": "string",
+                    "enumValues": [
+                        {
+                            "displayName": {
+                                "en": "Media Profile 1"
+                            },
+                            "enumValue": "mediaprofile1",
+                            "name": "MediaProfileEnum_1"
+                        },
+                        {
+                            "displayName": {
+                                "en": "Media Profile 2"
+                            },
+                            "enumValue": "mediaprofile2",
+                            "name": "MediaProfileEnum_2"
+                        }
+                    ]
+                }
             },
             {
                 "@type": "Command",
@@ -322,7 +366,7 @@
         ]
     },
     {
-        "@id": "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AiInference;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeDevice:AiInference;1",
         "@context": "dtmi:dtdl:context;2",
         "@type": "Interface",
         "displayName": {
@@ -482,7 +526,7 @@
         ]
     },
     {
-        "@id": "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeOperations;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeDevice:AvaEdgeOperations;1",
         "@context": "dtmi:dtdl:context;2",
         "@type": "Interface",
         "displayName": {
@@ -695,7 +739,7 @@
         ]
     },
     {
-        "@id": "dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeDiagnostics;1",
+        "@id": "dtmi:com:azuremedia:AvaEdgeDevice:AvaEdgeDiagnostics;1",
         "@context": "dtmi:dtdl:context;2",
         "@type": "Interface",
         "displayName": {

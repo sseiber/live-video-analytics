@@ -9,6 +9,7 @@ declare module '@hapi/hapi' {
     interface ServerOptionsApp {
         rootDirectory: string;
         storageRootDirectory: string;
+        contentRootDirectory: string;
         slogan: string;
     }
 }
@@ -21,6 +22,7 @@ export function manifest(config?: any): ComposeManifest {
             app: {
                 rootDirectory: pathResolve(__dirname, '..'),
                 storageRootDirectory: process.env.DATAMISC_ROOT || '/data/storage',
+                contentRootDirectory: process.env.CONTENT_ROOT || '/data/content',
                 slogan: 'AVA Edge Gateway Module'
             }
         },

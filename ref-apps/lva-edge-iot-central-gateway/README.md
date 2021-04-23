@@ -58,7 +58,6 @@ In order to bring up your own custom inference service, you need to include the 
 ### Edit the deployment.amd64.json file
 1. In VS Code, open the the *configs/deploymentManifests/deployment.amd64.json* file. (Or, a specific deployment file that matches your scenario - e.g. OpenVINO, ARM64, etc.)
 1. Edit the `registryCredentials` section to add your Azure Container Registry credentials.
-1. Edit the `AvaEdgeGatewayModule` module section to add the name of your image and your AVA account name in the `env:avaAccountName:value`.
 1. See the [Create a Live Video Analytics application in Azure IoT Central](https://docs.microsoft.com/azure/iot-central/retail/tutorial-video-analytics-create-app) for more information about how to complete the configuration.
 
 ## Build the code

@@ -1,11 +1,9 @@
 import { service, inject } from 'spryly';
 import { Server } from '@hapi/hapi';
-import { StorageService } from './storage';
 import { HealthState } from './health';
 import { AvaPipeline } from './avaPipeline';
 import { AvaCameraDevice, OnvifCameraCapability } from './device';
-import { AvaMotionDetectorDevice } from './motionDetectorDevice';
-import { AvaObjectDetectorDevice } from './objectDetectorDevice';
+import { AvaDevice } from './avaDevice';
 import { SymmetricKeySecurityClient } from 'azure-iot-security-symmetric-key';
 import { ProvisioningDeviceClient } from 'azure-iot-provisioning-device';
 import { Mqtt as ProvisioningTransport } from 'azure-iot-provisioning-device-mqtt';
@@ -32,30 +30,16 @@ const iotcOutput = 'iotc';
 
 type DeviceOperation = 'DELETE_CAMERA' | 'SEND_EVENT' | 'SEND_INFERENCES';
 
-export interface IEnvConfig {
+interface IEnvConfig {
     onvifModuleId: string;
     avaEdgeModuleId: string;
-    avaAccountName: string;
 }
 
 interface IAppConfig {
-    system: {
-        systemName: string;
-        systemId: string;
-    };
-    device: {
-        manufacturer: string;
-        model: string;
-        processorManufacturer: string;
-        totalStorage: number;
-    };
-    iotCentral: {
-        appHost: string;
-        apiToken: string;
-        deviceKey: string;
-        scopeId: string;
-    };
-    env: IEnvConfig;
+    appHost: string;
+    apiToken: string;
+    deviceKey: string;
+    scopeId: string;
 }
 
 export interface ICameraDeviceProvisionInfo {
@@ -64,7 +48,7 @@ export interface ICameraDeviceProvisionInfo {
     ipAddress: string;
     onvifUsername: string;
     onvifPassword: string;
-    detectionType: AddCameraDetectionType;
+    avaPipelineName: string;
 }
 
 interface ICameraOperationInfo {
@@ -121,24 +105,9 @@ enum AddCameraCommandRequestParams {
     IpAddress = 'AddCameraRequestParams_IpAddress',
     OnvifUsername = 'AddCameraRequestParams_OnvifUsername',
     OnvifPassword = 'AddCameraRequestParams_OnvifPassword',
-    DetectionType = 'AddCameraRequestParams_DetectionType'
+    AvaPipelineName = 'AddCameraRequestParams_AvaPipelineName'
 }
 
-enum AddCameraDetectionType {
-    Motion = 'motion',
-    Object = 'object'
-}
-
-const AvaCameraDeviceTypeMap = {
-    [AddCameraDetectionType.Object]: {
-        templateId: 'dtmi:com:azuremedia:model:AvaEdgeObjectDetectorDevice;1',
-        deviceClass: AvaObjectDetectorDevice
-    },
-    [AddCameraDetectionType.Motion]: {
-        templateId: 'dtmi:com:azuremedia:model:AvaEdgeMotionDetectorDevice;1',
-        deviceClass: AvaMotionDetectorDevice
-    }
-};
 const AvaOperationsInterfaceId = 'dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeOperations;1';
 
 enum RestartModuleCommandRequestParams {
@@ -200,8 +169,10 @@ export class CameraGatewayService {
     @inject('$server')
     private server: Server;
 
-    @inject('storage')
-    private storage: StorageService;
+    private envConfigInternal: IEnvConfig = {
+        onvifModuleId: process.env.onvifModuleId || '',
+        avaEdgeModuleId: process.env.avaEdgeModuleId || '',
+    };
 
     private healthCheckRetries: number = defaultHealthCheckRetries;
     private healthState = HealthState.Good;
@@ -210,39 +181,19 @@ export class CameraGatewayService {
         [AvaGatewayCapability.wpDebugTelemetry]: false,
         [AvaGatewayCapability.wpDebugRoutedMessage]: false
     };
-    private appConfig: IAppConfig = {
-        system: {
-            systemName: 'IoT Central Edge Gateway',
-            systemId: '00000000-0000-0000-0000-000000000000'
-        },
-        device: {
-            manufacturer: '',
-            model: '',
-            processorManufacturer: '',
-            totalStorage: 0
-        },
-        iotCentral: {
-            appHost: '',
-            apiToken: '',
-            deviceKey: '',
-            scopeId: ''
-        },
-        env: {
-            onvifModuleId: '',
-            avaEdgeModuleId: '',
-            avaAccountName: ''
-        }
-    };
     private avaInferenceDeviceMap = new Map<string, AvaCameraDevice>();
     private dpsProvisioningHost: string = defaultDpsProvisioningHost;
 
-    public async init(): Promise<void> {
-        this.server.log([moduleName, 'info'], 'initialize');
+    public get envConfig(): IEnvConfig {
+        return this.envConfig;
     }
 
-    @bind
-    public getAppConfig(): any {
-        return this.appConfig;
+    public get appConfig(): IAppConfig {
+        return this.server.settings.app.config.getConfig('iotCentral');
+    }
+
+    public async init(): Promise<void> {
+        this.server.log([moduleName, 'info'], 'initialize');
     }
 
     @bind
@@ -333,7 +284,7 @@ export class CameraGatewayService {
                                 ipAddress: edgeInputCameraCommandData?.ipAddress,
                                 onvifUsername: edgeInputCameraCommandData?.onvifUsername,
                                 onvifPassword: edgeInputCameraCommandData?.onvifPassword,
-                                detectionType: edgeInputCameraCommandData?.detectionType
+                                avaPipelineName: edgeInputCameraCommandData?.avaPipelineName
                             });
                             break;
 
@@ -403,23 +354,14 @@ export class CameraGatewayService {
         this.healthState = this.server.settings.app.iotCentralModule.getModuleClient() ? HealthState.Good : HealthState.Critical;
 
         const systemProperties = await this.getSystemProperties();
-
-        const hostConfig = await this.getAppConfigFromHost();
-        this.appConfig = {
-            ...hostConfig,
-            env: {
-                onvifModuleId: process.env.onvifModuleId || '',
-                avaEdgeModuleId: process.env.avaEdgeModuleId || '',
-                avaAccountName: process.env.avaAccountName || ''
-            }
-        };
+        const hostDeviceProperties = await this.getHostDeviceProperties();
 
         this.server.settings.app.iotCentralModule.addDirectMethod(AvaGatewayCapability.cmAddCamera, this.addCameraDirectMethod);
         this.server.settings.app.iotCentralModule.addDirectMethod(AvaGatewayCapability.cmDeleteCamera, this.deleteCameraDirectMethod);
         this.server.settings.app.iotCentralModule.addDirectMethod(AvaGatewayCapability.cmRestartModule, this.restartModuleDirectMethod);
 
         await this.server.settings.app.iotCentralModule.updateModuleProperties({
-            ...this.appConfig.device,
+            ...hostDeviceProperties,
             [IotcEdgeHostDevicePropNames.OsName]: osPlatform() || '',
             [IotcEdgeHostDevicePropNames.SwVersion]: osRelease() || '',
             [IotcEdgeHostDevicePropNames.ProcessorArchitecture]: osArch() || '',
@@ -539,9 +481,9 @@ export class CameraGatewayService {
         };
     }
 
-    private async getAppConfigFromHost(): Promise<any> {
+    private async getHostDeviceProperties(): Promise<any> {
         try {
-            return this.storage.get('state');
+            return this.server.settings.app.config.getConfig('device');
         }
         catch (ex) {
             this.server.log([moduleName, 'error'], `Error reading host configuration data: ${ex.message}`);
@@ -555,11 +497,11 @@ export class CameraGatewayService {
             this.server.log([moduleName, 'info'], `Getting component interfaces on device: ${deviceId}`);
 
             const devicePropertiesResponse = await this.iotcApiRequest(
-                `https://${this.appConfig.iotCentral.appHost}/api/preview/devices/${deviceId}/properties`,
+                `https://${this.appConfig.appHost}/api/preview/devices/${deviceId}/properties`,
                 'get',
                 {
                     headers: {
-                        Authorization: this.appConfig.iotCentral.apiToken
+                        Authorization: this.appConfig.apiToken
                     },
                     json: true
                 });
@@ -575,9 +517,7 @@ export class CameraGatewayService {
                 ipAddress: devicePropertiesResponse[OnvifCameraCapability.rpIpAddress],
                 onvifUsername: devicePropertiesResponse[OnvifCameraCapability.rpOnvifUsername],
                 onvifPassword: devicePropertiesResponse[OnvifCameraCapability.rpOnvifPassword],
-                detectionType: devicePropertiesResponse[AvaCameraDeviceTypeMap[AddCameraDetectionType.Object].templateId]
-                    ? AddCameraDetectionType.Object
-                    : AddCameraDetectionType.Motion
+                avaPipelineName: devicePropertiesResponse[OnvifCameraCapability.rpAvaPipelineName]
             };
         }
         catch (ex) {
@@ -592,11 +532,11 @@ export class CameraGatewayService {
 
         try {
             const deviceListResponse = await this.iotcApiRequest(
-                `https://${this.appConfig.iotCentral.appHost}/api/preview/devices`,
+                `https://${this.appConfig.appHost}/api/preview/devices`,
                 'get',
                 {
                     headers: {
-                        Authorization: this.appConfig.iotCentral.apiToken
+                        Authorization: this.appConfig.apiToken
                     },
                     json: true
                 });
@@ -612,7 +552,7 @@ export class CameraGatewayService {
                 try {
                     const cameraInfo = await this.validateLeafDeviceOwner(device.id);
                     if (cameraInfo) {
-                        this.server.log([moduleName, 'info'], `Recreating device: ${device.id} - detectionType: ${cameraInfo.detectionType}`);
+                        this.server.log([moduleName, 'info'], `Recreating device: ${device.id} - pipeline: ${cameraInfo.avaPipelineName}`);
 
                         await this.createAvaInferenceDevice(cameraInfo);
                     }
@@ -632,7 +572,7 @@ export class CameraGatewayService {
     }
 
     private async createAvaInferenceDevice(cameraInfo: ICameraDeviceProvisionInfo): Promise<IProvisionResult> {
-        this.server.log([moduleName, 'info'], `createAvaInferenceDevice - cameraId: ${cameraInfo.cameraId}, cameraName: ${cameraInfo.cameraName}, detectionType: ${cameraInfo.detectionType}`);
+        this.server.log([moduleName, 'info'], `createAvaInferenceDevice - cameraId: ${cameraInfo.cameraId}, cameraName: ${cameraInfo.cameraName}, pipeline: ${cameraInfo.avaPipelineName}`);
 
         let deviceProvisionResult: IProvisionResult = {
             dpsProvisionStatus: false,
@@ -653,10 +593,10 @@ export class CameraGatewayService {
                 return deviceProvisionResult;
             }
 
-            if (!this.appConfig.iotCentral.appHost
-                || !this.appConfig.iotCentral.apiToken
-                || !this.appConfig.iotCentral.deviceKey
-                || !this.appConfig.iotCentral.scopeId) {
+            if (!this.appConfig.appHost
+                || !this.appConfig.apiToken
+                || !this.appConfig.deviceKey
+                || !this.appConfig.scopeId) {
 
                 deviceProvisionResult.dpsProvisionStatus = false;
                 deviceProvisionResult.dpsProvisionMessage = `Missing camera management settings (ScopeId)`;
@@ -700,23 +640,31 @@ export class CameraGatewayService {
         };
 
         try {
-            const avaPipeline = await AvaPipeline.createAvaPipeline(this.server.settings.app.iotCentralModule, cameraInfo);
-            this.server.log([moduleName, 'info'], `Create AvaPipeline succeeded: ${this.appConfig.env.avaAccountName}`);
+            const pipelinePackage = await this.server.settings.app.blobStorage.getFileFromBlobStorage(`${cameraInfo.avaPipelineName}.json`);
+            if (!pipelinePackage) {
+                deviceProvisionResult.dpsProvisionStatus = false;
+                deviceProvisionResult.dpsProvisionMessage = `No pipeline package was found with name: ${cameraInfo.avaPipelineName}`;
 
-            const deviceKey = this.computeDeviceKey(cameraInfo.cameraId, this.appConfig.iotCentral.deviceKey);
-            this.server.log([moduleName, 'info'], `Computed deviceKey: ${deviceKey}`);
+                this.server.log([moduleName, 'error'], deviceProvisionResult.dpsProvisionMessage);
+
+                return deviceProvisionResult;
+            }
+
+            this.server.log(['ModuleService', 'info'], `Successfully downloaded pipeline package: ${cameraInfo.avaPipelineName}`);
+
+            const deviceKey = this.computeDeviceKey(cameraInfo.cameraId, this.appConfig.deviceKey);
 
             const provisioningSecurityClient = new SymmetricKeySecurityClient(cameraInfo.cameraId, deviceKey);
             const provisioningClient = ProvisioningDeviceClient.create(
                 this.dpsProvisioningHost,
-                this.appConfig.iotCentral.scopeId,
+                this.appConfig.scopeId,
                 new ProvisioningTransport(),
                 provisioningSecurityClient);
 
-            this.server.log([moduleName, 'info'], `Created provisioningClient succeeded`);
+            this.server.log(['ModuleService', 'info'], `Associating IoT Central templateId: ${pipelinePackage.templateId}`);
 
             const provisioningPayload = {
-                iotcModelId: AvaCameraDeviceTypeMap[cameraInfo.detectionType].templateId,
+                iotcModelId: pipelinePackage.templateId,
                 iotcGateway: {
                     iotcGatewayId: this.server.settings.app.iotCentralModule.deviceId,
                     iotcModuleId: this.server.settings.app.iotCentralModule.moduleId
@@ -745,7 +693,7 @@ export class CameraGatewayService {
             deviceProvisionResult.dpsProvisionMessage = `IoT Central successfully provisioned device: ${cameraInfo.cameraId}`;
             deviceProvisionResult.dpsHubConnectionString = dpsConnectionString;
 
-            deviceProvisionResult.avaInferenceDevice = new AvaCameraDeviceTypeMap[cameraInfo.detectionType].deviceClass(this.server.settings.app.iotCentralModule, avaPipeline, cameraInfo);
+            deviceProvisionResult.avaInferenceDevice = new AvaDevice(this.server, this.envConfig.onvifModuleId, this.envConfig.avaEdgeModuleId, this.appConfig.scopeId, pipelinePackage, cameraInfo);
 
             const { clientConnectionStatus, clientConnectionMessage } = await deviceProvisionResult.avaInferenceDevice.connectDeviceClient(deviceProvisionResult.dpsHubConnectionString);
 
@@ -779,11 +727,11 @@ export class CameraGatewayService {
             this.server.log([moduleName, 'info'], `Deleting IoT Central device instance: ${cameraId}`);
             try {
                 await this.iotcApiRequest(
-                    `https://${this.appConfig.iotCentral.appHost}/api/preview/devices/${cameraId}`,
+                    `https://${this.appConfig.appHost}/api/preview/devices/${cameraId}`,
                     'delete',
                     {
                         headers: {
-                            Authorization: this.appConfig.iotCentral.apiToken
+                            Authorization: this.appConfig.apiToken
                         },
                         json: true
                     });
@@ -886,7 +834,7 @@ export class CameraGatewayService {
             ipAddress: commandRequest?.payload?.[AddCameraCommandRequestParams.IpAddress],
             onvifUsername: commandRequest?.payload?.[AddCameraCommandRequestParams.OnvifUsername],
             onvifPassword: commandRequest?.payload?.[AddCameraCommandRequestParams.OnvifPassword],
-            detectionType: commandRequest?.payload?.[AddCameraCommandRequestParams.DetectionType]
+            avaPipelineName: commandRequest?.payload?.[AddCameraCommandRequestParams.AvaPipelineName]
         };
 
         try {
@@ -895,7 +843,7 @@ export class CameraGatewayService {
                 || !cameraInfo.ipAddress
                 || !cameraInfo.onvifUsername
                 || !cameraInfo.onvifPassword
-                || !cameraInfo.detectionType) {
+                || !cameraInfo.avaPipelineName) {
                 await commandResponse.send(200, {
                     [CommandResponseParams.StatusCode]: 400,
                     [CommandResponseParams.Message]: `Missing required parameters`,
