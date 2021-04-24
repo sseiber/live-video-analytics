@@ -7,11 +7,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV DATADIR /data/content
 WORKDIR ${DATADIR}
 
-ADD ./configs/mediaPipelines/motionPipelineInstance.json ${DATADIR}/motionPipelineInstance.json
-ADD ./configs/mediaPipelines/motionPipelineTopology.json ${DATADIR}/motionPipelineTopology.json
-ADD ./configs/mediaPipelines/objectPipelineInstance.json ${DATADIR}/objectPipelineInstance.json
-ADD ./configs/mediaPipelines/objectPipelineTopology.json ${DATADIR}/objectPipelineTopology.json
-
 ENV WORKINGDIR /app
 WORKDIR ${WORKINGDIR}
 

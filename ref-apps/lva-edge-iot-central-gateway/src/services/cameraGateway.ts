@@ -171,7 +171,7 @@ export class CameraGatewayService {
 
     private envConfigInternal: IEnvConfig = {
         onvifModuleId: process.env.onvifModuleId || '',
-        avaEdgeModuleId: process.env.avaEdgeModuleId || '',
+        avaEdgeModuleId: process.env.avaEdgeModuleId || ''
     };
 
     private healthCheckRetries: number = defaultHealthCheckRetries;
@@ -185,7 +185,7 @@ export class CameraGatewayService {
     private dpsProvisioningHost: string = defaultDpsProvisioningHost;
 
     public get envConfig(): IEnvConfig {
-        return this.envConfig;
+        return this.envConfigInternal;
     }
 
     public get appConfig(): IAppConfig {

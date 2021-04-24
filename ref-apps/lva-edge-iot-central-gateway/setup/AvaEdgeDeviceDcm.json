@@ -7,9 +7,9 @@
         ],
         "@type": "Interface",
         "displayName": {
-            "en": "AVA Edge Motion Detector Device"
+            "en": "AVA Edge Device"
         },
-        "description": "AVA Edge Motion Detector Device",
+        "description": "AVA Edge Device",
         "extends": [
             "dtmi:com:azuremedia:AvaEdgeDevice:DeviceInformation;1",
             "dtmi:com:azuremedia:AvaEdgeDevice:OnvifCamera;1",

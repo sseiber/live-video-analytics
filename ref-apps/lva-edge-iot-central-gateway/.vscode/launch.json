@@ -26,7 +26,7 @@
                 "EdgeModuleCACertificateFile": "${config:azure-iot-edge.EdgeModuleCACertificateFile}",
                 "NODE_ENV": "local",
                 "PORT": "9070",
-                "DATAMISC_ROOT": "${workspaceFolder}/storage",
+                "DATAMISC_ROOT": "${workspaceFolder}/configs",
                 "CONTENT_ROOT": "${workspaceFolder}/configs"
             }
         },

@@ -31,7 +31,11 @@ const configPlugin: Plugin<any> = {
             throw new Error('Missing required option config in IConfigPluginOptions');
         }
 
-        server.settings.app.config = new ConfigModule(server, options);
+        const plugin = new ConfigModule(server, options);
+
+        await plugin.initialize();
+
+        server.settings.app.config = plugin;
     }
 };
 
