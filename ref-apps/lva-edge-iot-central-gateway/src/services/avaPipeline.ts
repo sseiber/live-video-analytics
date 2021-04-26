@@ -17,7 +17,7 @@ export class AvaPipeline {
         const subject = AvaPipeline.getAvaMessageProperty(message, 'subject');
         if (subject) {
             const pipelinePathElements = subject.split('/');
-            if (pipelinePathElements.length >= 3 && pipelinePathElements[1] === 'graphInstances') {
+            if (pipelinePathElements.length >= 3 && pipelinePathElements[1] === 'livePipelines') {
                 const pipelineInstanceName = pipelinePathElements[2] || '';
                 if (pipelineInstanceName) {
                     return pipelineInstanceName.substring(pipelineInstanceName.indexOf('_') + 1) || '';
@@ -50,8 +50,13 @@ export class AvaPipeline {
         this.iotCentralModule = server.settings.app.iotCentralModule;
         this.avaEdgeModuleId = avaEdgeModuleId;
         this.cameraInfo = cameraInfo;
-        this.instance = pipelinePackage.instance;
-        this.topology = pipelinePackage.topology;
+        this.instance = {
+            ...pipelinePackage.instance,
+            name: cameraInfo.cameraId
+        };
+        this.topology = {
+            ...pipelinePackage.topology
+        };
 
         this.avaAssetName = '';
         this.instanceName = {
@@ -165,14 +170,14 @@ export class AvaPipeline {
     }
 
     private async setTopology(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `PipelineTopologySet`, this.topology);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `pipelineTopologySet`, this.topology);
 
         return response.status === 200;
     }
 
     // @ts-ignore
     private async deleteTopology(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `PipelineTopologyDelete`, this.topologyName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `pipelineTopologyDelete`, this.topologyName);
 
         return response.status === 200;
     }
@@ -192,26 +197,26 @@ export class AvaPipeline {
             this.setParam(param, pipelineParams[param]);
         }
 
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `PipelineInstanceSet`, this.instance);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineSet`, this.instance);
 
-        return response.status === 200;
+        return response.status >= 200 && response.status < 300;
     }
 
     private async deleteInstance(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `PipelineInstanceDelete`, this.instanceName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineDelete`, this.instanceName);
 
-        return response.status === 200;
+        return response.status >= 200 && response.status < 300;
     }
 
     private async activateInstance(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `PipelineInstanceActivate`, this.instanceName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineActivate`, this.instanceName);
 
-        return response.status === 200;
+        return response.status >= 200 && response.status < 300;
     }
 
     private async deactivateInstance(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `PipelineInstanceDeactivate`, this.instanceName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineDeactivate`, this.instanceName);
 
-        return response.status === 200;
+        return response.status >= 200 && response.status < 300;
     }
 }

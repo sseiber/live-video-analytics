@@ -108,7 +108,7 @@ enum AddCameraCommandRequestParams {
     AvaPipelineName = 'AddCameraRequestParams_AvaPipelineName'
 }
 
-const AvaOperationsInterfaceId = 'dtmi:com:azuremedia:AvaEdgeObjectDetectorDevice:AvaEdgeOperations;1';
+const AvaCameraInterfaceId = 'com_azuremedia_AvaEdgeDevice_OnvifCamera';
 
 enum RestartModuleCommandRequestParams {
     Timeout = 'RestartModuleRequestParams_Timeout'
@@ -313,9 +313,9 @@ export class CameraGatewayService {
                 case AvaGatewayEdgeInputs.AvaTelemetry: {
                     const cameraId = AvaPipeline.getCameraIdFromAvaMessage(message);
                     if (!cameraId) {
-                        this.server.log([moduleName, 'error'], `Received AvaDiagnostics telemetry but no cameraId found in subject`);
-                        this.server.log([moduleName, 'error'], `AvaDiagnostics eventType: ${AvaPipeline.getAvaMessageProperty(message, 'eventType')}`);
-                        this.server.log([moduleName, 'error'], `AvaDiagnostics subject: ${AvaPipeline.getAvaMessageProperty(message, 'subject')}`);
+                        this.server.log([moduleName, 'error'], `Received ${inputName} message but no cameraId was found in the subject property`);
+                        this.server.log([moduleName, 'error'], `${inputName} eventType: ${AvaPipeline.getAvaMessageProperty(message, 'eventType')}`);
+                        this.server.log([moduleName, 'error'], `${inputName} subject: ${AvaPipeline.getAvaMessageProperty(message, 'subject')}`);
                         break;
                     }
 
@@ -506,18 +506,19 @@ export class CameraGatewayService {
                     json: true
                 });
 
-            if (!devicePropertiesResponse[AvaOperationsInterfaceId]) {
+            const cameraProps = devicePropertiesResponse.payload?.[AvaCameraInterfaceId];
+            if (!cameraProps) {
                 this.server.log([moduleName, 'error'], `Could not find AVA interface(s) on device id: ${deviceId}`);
                 return;
             }
 
             return {
                 cameraId: deviceId,
-                cameraName: devicePropertiesResponse[OnvifCameraCapability.rpCameraName],
-                ipAddress: devicePropertiesResponse[OnvifCameraCapability.rpIpAddress],
-                onvifUsername: devicePropertiesResponse[OnvifCameraCapability.rpOnvifUsername],
-                onvifPassword: devicePropertiesResponse[OnvifCameraCapability.rpOnvifPassword],
-                avaPipelineName: devicePropertiesResponse[OnvifCameraCapability.rpAvaPipelineName]
+                cameraName: cameraProps[OnvifCameraCapability.rpCameraName],
+                ipAddress: cameraProps[OnvifCameraCapability.rpIpAddress],
+                onvifUsername: cameraProps[OnvifCameraCapability.rpOnvifUsername],
+                onvifPassword: cameraProps[OnvifCameraCapability.rpOnvifPassword],
+                avaPipelineName: cameraProps[OnvifCameraCapability.rpAvaPipelineName]
             };
         }
         catch (ex) {
@@ -650,7 +651,7 @@ export class CameraGatewayService {
                 return deviceProvisionResult;
             }
 
-            this.server.log(['ModuleService', 'info'], `Successfully downloaded pipeline package: ${cameraInfo.avaPipelineName}`);
+            this.server.log(['ModuleService', 'info'], `Successfully downloaded pipeline package: ${cameraInfo.avaPipelineName}.json`);
 
             const deviceKey = this.computeDeviceKey(cameraInfo.cameraId, this.appConfig.deviceKey);
 
@@ -661,10 +662,10 @@ export class CameraGatewayService {
                 new ProvisioningTransport(),
                 provisioningSecurityClient);
 
-            this.server.log(['ModuleService', 'info'], `Associating IoT Central templateId: ${pipelinePackage.templateId}`);
+            this.server.log(['ModuleService', 'info'], `Associating IoT Central templateId: ${pipelinePackage.config.iotcTemplateId}`);
 
             const provisioningPayload = {
-                iotcModelId: pipelinePackage.templateId,
+                iotcModelId: pipelinePackage.config.iotcTemplateId,
                 iotcGateway: {
                     iotcGatewayId: this.server.settings.app.iotCentralModule.deviceId,
                     iotcModuleId: this.server.settings.app.iotCentralModule.moduleId

@@ -63,6 +63,8 @@ export enum OnvifCameraCapability {
     rpOnvifUsername = 'rpOnvifUsername',
     rpOnvifPassword = 'rpOnvifPassword',
     rpAvaPipelineName = 'rpAvaPipelineName',
+    rpMediaProfile1 = 'rpMediaProfile1',
+    rpMediaProfile2 = 'rpMediaProfile2',
     wpOnvifMediaProfileSelector = 'wpOnvifMediaProfileSelector',
     wpVideoPlaybackHost = 'wpVideoPlaybackHost',
     cmCaptureImage = 'cmCaptureImage',
@@ -70,13 +72,13 @@ export enum OnvifCameraCapability {
 }
 
 interface IOnvifCameraSettings {
-    mediaprofile1: IMediaProfileInfo;
-    mediaprofile2: IMediaProfileInfo;
+    mediaProfiles: IMediaProfileInfo[];
     [OnvifCameraCapability.wpOnvifMediaProfileSelector]: string;
     [OnvifCameraCapability.wpVideoPlaybackHost]: string;
 }
 
 const defaultVideoPlaybackHost = 'http://localhost:8094';
+const defaultInferenceTimeout = 5;
 const defaultMaxVideoInferenceTime = 10;
 
 enum AvaEdgeOperationsCapability {
@@ -117,8 +119,6 @@ interface IAvaEdgeDiagnosticsSettings {
     [AvaEdgeDiagnosticsCapability.wpDebugTelemetry]: boolean;
 }
 
-const defaultInferenceTimeout = 5;
-
 export enum AiInferenceCapability {
     tlInferenceCount = 'tlInferenceCount',
     tlInference = 'tlInference',
@@ -149,14 +149,7 @@ export abstract class AvaCameraDevice {
     protected lastInferenceTime: moment.Moment = moment.utc(0);
     protected videoInferenceStartTime: moment.Moment = moment.utc();
     protected onvifCameraSettings: IOnvifCameraSettings = {
-        mediaprofile1: {
-            mediaProfileName: '',
-            mediaProfileToken: ''
-        },
-        mediaprofile2: {
-            mediaProfileName: '',
-            mediaProfileToken: ''
-        },
+        mediaProfiles: [],
         wpOnvifMediaProfileSelector: OnvifMediaProfile.MediaProfile1,
         wpVideoPlaybackHost: defaultVideoPlaybackHost
     };
@@ -267,17 +260,17 @@ export abstract class AvaCameraDevice {
         let eventValue = this.cameraInfo.cameraId;
 
         switch (avaEvent) {
-            case 'Microsoft.Media.Graph.Operational.RecordingStarted':
+            case 'Microsoft.VideoAnalyzer.Operational.RecordingStarted':
                 eventField = AvaEdgeOperationsCapability.evRecordingStarted;
                 eventValue = messageJson?.outputLocation || this.cameraInfo.cameraId;
                 break;
 
-            case 'Microsoft.Media.Graph.Operational.RecordingStopped':
+            case 'Microsoft.VideoAnalyzer.Operational.RecordingStopped':
                 eventField = AvaEdgeOperationsCapability.evRecordingStopped;
                 eventValue = messageJson?.outputLocation || this.cameraInfo.cameraId;
                 break;
 
-            case 'Microsoft.Media.Graph.Operational.RecordingAvailable':
+            case 'Microsoft.VideoAnalyzer.Operational.RecordingAvailable':
                 eventField = AvaEdgeOperationsCapability.evRecordingAvailable;
                 eventValue = messageJson?.outputLocation || this.cameraInfo.cameraId;
                 break;
@@ -287,42 +280,42 @@ export abstract class AvaCameraDevice {
                 eventValue = messageJson?.code || this.cameraInfo.cameraId;
                 break;
 
-            case 'Microsoft.Media.Graph.Diagnostics.AuthenticationError':
+            case 'Microsoft.VideoAnalyzer.Diagnostics.AuthenticationError':
                 eventField = AvaEdgeDiagnosticsCapability.evAuthenticationError;
                 eventValue = messageJson?.errorCode || this.cameraInfo.cameraId;
                 break;
 
-            case 'Microsoft.Media.Graph.Diagnostics.AuthorizationError':
+            case 'Microsoft.VideoAnalyzer.Diagnostics.AuthorizationError':
                 eventField = AvaEdgeDiagnosticsCapability.evAuthorizationError;
                 eventValue = messageJson?.errorCode || this.cameraInfo.cameraId;
                 break;
 
-            case 'Microsoft.Media.Graph.Diagnostics.DataDropped':
+            case 'Microsoft.VideoAnalyzer.Diagnostics.DataDropped':
                 eventField = AvaEdgeDiagnosticsCapability.evDataDropped;
                 eventValue = messageJson?.dataType || this.cameraInfo.cameraId;
                 break;
 
-            case 'Microsoft.Media.Graph.Diagnostics.MediaFormatError':
+            case 'Microsoft.VideoAnalyzer.Diagnostics.MediaFormatError':
                 eventField = AvaEdgeDiagnosticsCapability.evMediaFormatError;
                 eventValue = messageJson?.code || this.cameraInfo.cameraId;
                 break;
 
-            case 'Microsoft.Media.Graph.Diagnostics.MediaSessionEstablished':
+            case 'Microsoft.VideoAnalyzer.Diagnostics.MediaSessionEstablished':
                 eventField = AvaEdgeDiagnosticsCapability.evMediaSessionEstablished;
                 eventValue = this.cameraInfo.cameraId;
                 break;
 
-            case 'Microsoft.Media.Graph.Diagnostics.NetworkError':
+            case 'Microsoft.VideoAnalyzer.Diagnostics.NetworkError':
                 eventField = AvaEdgeDiagnosticsCapability.evNetworkError;
                 eventValue = messageJson?.errorCode || this.cameraInfo.cameraId;
                 break;
 
-            case 'Microsoft.Media.Graph.Diagnostics.ProtocolError':
+            case 'Microsoft.VideoAnalyzer.Diagnostics.ProtocolError':
                 eventField = AvaEdgeDiagnosticsCapability.evProtocolError;
                 eventValue = `${messageJson?.protocol}: ${messageJson?.errorCode}` || this.cameraInfo.cameraId;
                 break;
 
-            case 'Microsoft.Media.Graph.Diagnostics.StorageError':
+            case 'Microsoft.VideoAnalyzer.Diagnostics.StorageError':
                 eventField = AvaEdgeDiagnosticsCapability.evStorageError;
                 eventValue = messageJson?.storageAccountName || this.cameraInfo.cameraId;
                 break;
@@ -348,7 +341,7 @@ export abstract class AvaCameraDevice {
 
     protected async getCameraProps(): Promise<IOnvifCameraInformation> {
         try {
-            let deviceInfoResult = await this.iotCentralModule.invokeDirectMethod(
+            const deviceInfoResult = await this.iotCentralModule.invokeDirectMethod(
                 this.onvifModuleId,
                 'GetDeviceInformation',
                 {
@@ -357,15 +350,7 @@ export abstract class AvaCameraDevice {
                     Password: this.cameraInfo.onvifPassword
                 });
 
-            const cameraProps = {
-                rpManufacturer: deviceInfoResult.payload?.Manufacturer || '',
-                rpModel: deviceInfoResult.payload?.Model || '',
-                rpFirmwareVersion: deviceInfoResult.payload?.Firmware || '',
-                rpHardwareId: deviceInfoResult.payload?.HardwareId || '',
-                rpSerialNumber: deviceInfoResult.payload?.SerialNumber || ''
-            };
-
-            deviceInfoResult = await this.iotCentralModule.invokeDirectMethod(
+            const mediaProfileResult = await this.iotCentralModule.invokeDirectMethod(
                 this.onvifModuleId,
                 'GetMediaProfileList',
                 {
@@ -374,23 +359,27 @@ export abstract class AvaCameraDevice {
                     Password: this.cameraInfo.onvifPassword
                 });
 
-            const mediaProfile1 = {
-                mediaProfileName: deviceInfoResult.payload[0]?.MediaProfileName || '',
-                mediaProfileToken: deviceInfoResult.payload[0]?.MediaProfileToken || ''
-            };
-
-            const mediaProfile2 = {
-                mediaProfileName: deviceInfoResult.payload[1]?.MediaProfileName || '',
-                mediaProfileToken: deviceInfoResult.payload[1]?.MediaProfileToken || ''
-            };
+            this.onvifCameraSettings.mediaProfiles = (mediaProfileResult.payload || []).map((profile) => {
+                return {
+                    mediaProfileName: profile.MediaProfileName,
+                    mediaProfileToken: profile.MediaProfileToken
+                };
+            });
 
             return {
-                ...cameraProps,
+                rpManufacturer: deviceInfoResult.payload?.Manufacturer || '',
+                rpModel: deviceInfoResult.payload?.Model || '',
+                rpFirmwareVersion: deviceInfoResult.payload?.Firmware || '',
+                rpHardwareId: deviceInfoResult.payload?.HardwareId || '',
+                rpSerialNumber: deviceInfoResult.payload?.SerialNumber || '',
+
                 rpMediaProfile1: {
-                    ...mediaProfile1
+                    mediaProfileName: mediaProfileResult.payload[0]?.MediaProfileName || '',
+                    mediaProfileToken: mediaProfileResult.payload[0]?.MediaProfileToken || ''
                 },
                 rpMediaProfile2: {
-                    ...mediaProfile2
+                    mediaProfileName: mediaProfileResult.payload[1]?.MediaProfileName || '',
+                    mediaProfileToken: mediaProfileResult.payload[1]?.MediaProfileToken || ''
                 }
             };
         }
@@ -399,6 +388,31 @@ export abstract class AvaCameraDevice {
         }
 
         return;
+    }
+
+    protected async getRtspStreamUrl(): Promise<string> {
+        let rtspUrl = '';
+
+        try {
+            const requestParams = {
+                Address: this.cameraInfo.ipAddress,
+                Username: this.cameraInfo.onvifUsername,
+                Password: this.cameraInfo.onvifPassword,
+                MediaProfileToken: this.onvifCameraSettings.mediaProfiles[this.onvifCameraSettings.wpOnvifMediaProfileSelector === OnvifMediaProfile.MediaProfile1 ? 0 : 1].mediaProfileToken
+            };
+
+            const serviceResponse = await this.iotCentralModule.invokeDirectMethod(
+                this.onvifModuleId,
+                'GetRTSPStreamURI',
+                requestParams);
+
+            rtspUrl = serviceResponse.status === 200 ? serviceResponse.payload : '';
+        }
+        catch (ex) {
+            this.server.log([this.cameraInfo.cameraId, 'error'], `An error occurred while getting onvif stream uri from device id: ${this.cameraInfo.cameraId}`);
+        }
+
+        return rtspUrl;
     }
 
     protected async onHandleDeviceProperties(desiredChangedSettings: any): Promise<void> {
@@ -518,31 +532,6 @@ export abstract class AvaCameraDevice {
             //     }
             // }
         }
-    }
-
-    private async getRtspStreamUrl(): Promise<string> {
-        let rtspUrl = '';
-
-        try {
-            const requestParams = {
-                Address: this.cameraInfo.ipAddress,
-                Username: this.cameraInfo.onvifUsername,
-                Password: this.cameraInfo.onvifPassword,
-                MediaProfileToken: this.onvifCameraSettings[this.onvifCameraSettings.wpOnvifMediaProfileSelector].mediaProfileToken
-            };
-
-            const serviceResponse = await this.iotCentralModule.invokeDirectMethod(
-                this.onvifModuleId,
-                'GetRTSPStreamURI',
-                requestParams);
-
-            rtspUrl = serviceResponse.status === 200 ? serviceResponse.payload : '';
-        }
-        catch (ex) {
-            this.server.log([this.cameraInfo.cameraId, 'error'], `An error occurred while getting onvif stream uri from device id: ${this.cameraInfo.cameraId}`);
-        }
-
-        return rtspUrl;
     }
 
     private async startAvaProcessingInternal(autoStart: boolean): Promise<boolean> {

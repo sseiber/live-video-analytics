@@ -18,6 +18,10 @@ interface IAvaInference {
             w: number;
             h: number;
         };
+        tag?: {
+            value: string;
+            confidence: number;
+        };
     };
 }
 
@@ -43,6 +47,7 @@ export class AvaDevice extends AvaCameraDevice {
             [OnvifCameraCapability.rpIpAddress]: this.cameraInfo.ipAddress,
             [OnvifCameraCapability.rpOnvifUsername]: this.cameraInfo.onvifUsername,
             [OnvifCameraCapability.rpOnvifPassword]: this.cameraInfo.onvifPassword,
+            [OnvifCameraCapability.rpAvaPipelineName]: this.cameraInfo.avaPipelineName,
             [AiInferenceCapability.rpInferenceImageUrl]: ''
         });
     }

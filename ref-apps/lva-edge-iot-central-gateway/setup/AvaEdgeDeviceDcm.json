@@ -69,64 +69,6 @@
                 },
                 "name": "rpSerialNumber",
                 "schema": "string"
-            },
-            {
-                "@type": "Property",
-                "displayName": {
-                    "en": "Media Profile 1"
-                },
-                "name": "rpMediaProfile1",
-                "schema": {
-                    "@type": "Object",
-                    "displayName": {
-                        "en": "Media Profile 1"
-                    },
-                    "fields": [
-                        {
-                            "displayName": {
-                                "en": "Media Profile Name"
-                            },
-                            "name": "mediaProfile1Name",
-                            "schema": "string"
-                        },
-                        {
-                            "displayName": {
-                                "en": "Media Profile Token"
-                            },
-                            "name": "mediaProfile1Token",
-                            "schema": "string"
-                        }
-                    ]
-                }
-            },
-            {
-                "@type": "Property",
-                "displayName": {
-                    "en": "Media Profile 2"
-                },
-                "name": "rpMediaProfile2",
-                "schema": {
-                    "@type": "Object",
-                    "displayName": {
-                        "en": "Media Profile 2"
-                    },
-                    "fields": [
-                        {
-                            "displayName": {
-                                "en": "Media Profile Name"
-                            },
-                            "name": "mediaProfile2Name",
-                            "schema": "string"
-                        },
-                        {
-                            "displayName": {
-                                "en": "Media Profile Token"
-                            },
-                            "name": "mediaProfile2Token",
-                            "schema": "string"
-                        }
-                    ]
-                }
             }
         ]
     },
@@ -245,6 +187,64 @@
                 },
                 "name": "rpAvaPipelineName",
                 "schema": "string"
+            },
+            {
+                "@type": "Property",
+                "displayName": {
+                    "en": "Media Profile 1"
+                },
+                "name": "rpMediaProfile1",
+                "schema": {
+                    "@type": "Object",
+                    "displayName": {
+                        "en": "Media Profile 1"
+                    },
+                    "fields": [
+                        {
+                            "displayName": {
+                                "en": "Media Profile Name"
+                            },
+                            "name": "mediaProfileName",
+                            "schema": "string"
+                        },
+                        {
+                            "displayName": {
+                                "en": "Media Profile Token"
+                            },
+                            "name": "mediaProfileToken",
+                            "schema": "string"
+                        }
+                    ]
+                }
+            },
+            {
+                "@type": "Property",
+                "displayName": {
+                    "en": "Media Profile 2"
+                },
+                "name": "rpMediaProfile2",
+                "schema": {
+                    "@type": "Object",
+                    "displayName": {
+                        "en": "Media Profile 2"
+                    },
+                    "fields": [
+                        {
+                            "displayName": {
+                                "en": "Media Profile Name"
+                            },
+                            "name": "mediaProfileName",
+                            "schema": "string"
+                        },
+                        {
+                            "displayName": {
+                                "en": "Media Profile Token"
+                            },
+                            "name": "mediaProfileToken",
+                            "schema": "string"
+                        }
+                    ]
+                }
             },
             {
                 "@type": "Property",
