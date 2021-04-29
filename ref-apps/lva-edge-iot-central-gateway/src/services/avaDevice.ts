@@ -1,6 +1,5 @@
 import { Server } from '@hapi/hapi';
 import { ICameraDeviceProvisionInfo } from './cameraGateway';
-import { IPipelinePackage } from './avaPipeline';
 import {
     OnvifCameraCapability,
     AiInferenceCapability,
@@ -26,8 +25,8 @@ interface IAvaInference {
 }
 
 export class AvaDevice extends AvaCameraDevice {
-    constructor(server: Server, onvifModuleId: string, avaEdgeModuleId: string, appScopeId: string, pipelinePackage: IPipelinePackage, cameraInfo: ICameraDeviceProvisionInfo) {
-        super(server, onvifModuleId, avaEdgeModuleId, appScopeId, pipelinePackage, cameraInfo);
+    constructor(server: Server, onvifModuleId: string, avaEdgeModuleId: string, appScopeId: string, pipelineTopology: any, cameraInfo: ICameraDeviceProvisionInfo) {
+        super(server, onvifModuleId, avaEdgeModuleId, appScopeId, pipelineTopology, cameraInfo);
     }
 
     public setPipelineParams(): any {
@@ -47,7 +46,8 @@ export class AvaDevice extends AvaCameraDevice {
             [OnvifCameraCapability.rpIpAddress]: this.cameraInfo.ipAddress,
             [OnvifCameraCapability.rpOnvifUsername]: this.cameraInfo.onvifUsername,
             [OnvifCameraCapability.rpOnvifPassword]: this.cameraInfo.onvifPassword,
-            [OnvifCameraCapability.rpAvaPipelineName]: this.cameraInfo.avaPipelineName,
+            [OnvifCameraCapability.rpDeviceModelId]: this.cameraInfo.deviceModelId,
+            [OnvifCameraCapability.rpAvaPipelineName]: this.cameraInfo.avaPipelineTopologyName,
             [AiInferenceCapability.rpInferenceImageUrl]: ''
         });
     }

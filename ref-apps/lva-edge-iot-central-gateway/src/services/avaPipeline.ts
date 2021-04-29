@@ -6,12 +6,6 @@ import * as moment from 'moment';
 
 const moduleName = 'AvaPipeline';
 
-export interface IPipelinePackage {
-    data: any;
-    instance: any;
-    topology: any;
-}
-
 export class AvaPipeline {
     public static getCameraIdFromAvaMessage(message: IoTMessage): string {
         const subject = AvaPipeline.getAvaMessageProperty(message, 'subject');
@@ -38,84 +32,95 @@ export class AvaPipeline {
     private iotCentralModule: IIotCentralModule;
     private avaEdgeModuleId: string;
     private cameraInfo: ICameraDeviceProvisionInfo;
-    private instance: any;
-    private topology: any;
+    private topologyInternal: any;
+    private instanceInternal: any;
 
     private avaAssetName: string;
-    private instanceName: any;
-    private topologyName: any;
+    private topologyNameObject: any;
+    private instanceNameObject: any;
 
-    constructor(server: Server, avaEdgeModuleId: string, cameraInfo: ICameraDeviceProvisionInfo, pipelinePackage: IPipelinePackage) {
+    constructor(server: Server, avaEdgeModuleId: string, cameraInfo: ICameraDeviceProvisionInfo, pipelineTopology: any) {
         this.server = server;
         this.iotCentralModule = server.settings.app.iotCentralModule;
         this.avaEdgeModuleId = avaEdgeModuleId;
         this.cameraInfo = cameraInfo;
-        this.instance = {
-            ...pipelinePackage.instance,
-            name: cameraInfo.cameraId
+        this.topologyInternal = {
+            ...pipelineTopology
         };
-        this.topology = {
-            ...pipelinePackage.topology
+        this.instanceInternal = {
+            name: cameraInfo.cameraId
         };
 
         this.avaAssetName = '';
-        this.instanceName = {
-            ['@apiVersion']: this.instance['@apiVersion'],
-            name: this.instance.name
+
+        this.topologyNameObject = {
+            ['@apiVersion']: this.topologyInternal['@apiVersion'],
+            name: this.topologyInternal.name
         };
 
-        this.topologyName = {
-            ['@apiVersion']: this.topology['@apiVersion'],
-            name: this.topology.name
+        this.instanceNameObject = {
+            ['@apiVersion']: this.topologyInternal['@apiVersion'],
+            name: this.instanceInternal.name
         };
     }
 
-    public getInstance(): any {
-        return this.instance;
+    public get topologyName(): string {
+        return this.topologyNameObject?.name || '';
     }
 
-    public getTopology(): any {
-        return this.topology;
+    public get instanceName(): string {
+        return this.instanceNameObject?.name || '';
     }
 
-    public getInstanceName(): string {
-        return this.instanceName?.name || '';
+    public get topology(): any {
+        return this.topologyInternal;
     }
 
-    public getTopologyName(): string {
-        return this.topologyName?.name || '';
+    public get instance(): any {
+        return this.instanceInternal;
     }
 
-    public setParam(paramName: string, value: any): void {
+    public setInstanceParam(paramName: string, value: any): void {
         if (!paramName || value === undefined) {
-            this.server.log([moduleName, this.cameraInfo.cameraId, 'error'], `setParam error - param: ${paramName}, value: ${value}`);
+            this.server.log([moduleName, this.cameraInfo.cameraId, 'error'], `setInstanceParam error - param: ${paramName}, value: ${value}`);
             return;
         }
 
-        const params = this.instance.properties?.parameters || [];
+        const params = this.instanceInternal.properties?.parameters || [];
         const param = params.find(item => item.name === paramName);
         if (!param) {
-            this.server.log([moduleName, this.cameraInfo.cameraId, 'warning'], `setParam no param named: ${paramName}`);
+            this.server.log([moduleName, this.cameraInfo.cameraId, 'warning'], `setInstanceParam no param named: ${paramName}`);
             return;
         }
 
         param.value = value;
     }
 
-    public async startAvaPipeline(pipelineParameters: any): Promise<boolean> {
+    public async startAvaPipeline(pipelineInstance: any, pipelineParameters: any): Promise<boolean> {
         this.server.log([moduleName, this.cameraInfo.cameraId, 'info'], `startAvaPipeline`);
 
         let result = false;
 
         try {
+            this.instanceInternal = {
+                ...pipelineInstance,
+                name: this.cameraInfo.cameraId
+            };
+
+            this.server.log([moduleName, this.cameraInfo.cameraId, '#####'], `going to call setTopology`);
             result = await this.setTopology();
+            this.server.log([moduleName, this.cameraInfo.cameraId, '#####'], `setTopology result is ${result}`);
 
             if (result === true) {
+                this.server.log([moduleName, this.cameraInfo.cameraId, '#####'], `going to call setInstance`);
                 result = await this.setInstance(pipelineParameters);
+                this.server.log([moduleName, this.cameraInfo.cameraId, '#####'], `setInstance result is ${result}`);
             }
 
             if (result === true) {
+                this.server.log([moduleName, this.cameraInfo.cameraId, '#####'], `going to call activateInstance`);
                 result = await this.activateInstance();
+                this.server.log([moduleName, this.cameraInfo.cameraId, '#####'], `activateInstance result is ${result}`);
             }
         }
         catch (ex) {
@@ -170,52 +175,52 @@ export class AvaPipeline {
     }
 
     private async setTopology(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `pipelineTopologySet`, this.topology);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `pipelineTopologySet`, this.topologyInternal);
 
-        return response.status === 200;
+        return response.status >= 200 && response.status < 300;
     }
 
     // @ts-ignore
     private async deleteTopology(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `pipelineTopologyDelete`, this.topologyName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `pipelineTopologyDelete`, this.topologyNameObject);
 
-        return response.status === 200;
+        return response.status >= 200 && response.status < 300;
     }
 
     private async setInstance(pipelineParams: any): Promise<boolean> {
         this.avaAssetName = pipelineParams.assetName;
-        this.setParam('assetName', this.avaAssetName);
+        this.setInstanceParam('assetName', this.avaAssetName);
 
-        this.setParam('rtspAuthUsername', this.cameraInfo.onvifUsername);
-        this.setParam('rtspAuthPassword', this.cameraInfo.onvifPassword);
+        this.setInstanceParam('rtspAuthUsername', this.cameraInfo.onvifUsername);
+        this.setInstanceParam('rtspAuthPassword', this.cameraInfo.onvifPassword);
 
         for (const param in pipelineParams) {
             if (!Object.prototype.hasOwnProperty.call(pipelineParams, param)) {
                 continue;
             }
 
-            this.setParam(param, pipelineParams[param]);
+            this.setInstanceParam(param, pipelineParams[param]);
         }
 
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineSet`, this.instance);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineSet`, this.instanceInternal);
 
         return response.status >= 200 && response.status < 300;
     }
 
     private async deleteInstance(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineDelete`, this.instanceName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineDelete`, this.instanceNameObject);
 
         return response.status >= 200 && response.status < 300;
     }
 
     private async activateInstance(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineActivate`, this.instanceName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineActivate`, this.instanceNameObject);
 
         return response.status >= 200 && response.status < 300;
     }
 
     private async deactivateInstance(): Promise<boolean> {
-        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineDeactivate`, this.instanceName);
+        const response = await this.iotCentralModule.invokeDirectMethod(this.avaEdgeModuleId, `livePipelineDeactivate`, this.instanceNameObject);
 
         return response.status >= 200 && response.status < 300;
     }

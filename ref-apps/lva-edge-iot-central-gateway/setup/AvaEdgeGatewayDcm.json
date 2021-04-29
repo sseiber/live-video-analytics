@@ -382,9 +382,16 @@
                             },
                             {
                                 "displayName": {
-                                    "en": "AVA Pipeline Name"
+                                    "en": "Device Model Id"
                                 },
-                                "name": "AddCameraRequestParams_AvaPipelineName",
+                                "name": "AddCameraRequestParams_DeviceModelId",
+                                "schema": "string"
+                            },
+                            {
+                                "displayName": {
+                                    "en": "AVA Pipeline Topology Name"
+                                },
+                                "name": "AddCameraRequestParams_AvaPipelineTopologyName",
                                 "schema": "string"
                             }
                         ]

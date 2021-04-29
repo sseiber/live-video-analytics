@@ -48,7 +48,8 @@ export interface ICameraDeviceProvisionInfo {
     ipAddress: string;
     onvifUsername: string;
     onvifPassword: string;
-    avaPipelineName: string;
+    deviceModelId: string;
+    avaPipelineTopologyName: string;
 }
 
 interface ICameraOperationInfo {
@@ -105,7 +106,8 @@ enum AddCameraCommandRequestParams {
     IpAddress = 'AddCameraRequestParams_IpAddress',
     OnvifUsername = 'AddCameraRequestParams_OnvifUsername',
     OnvifPassword = 'AddCameraRequestParams_OnvifPassword',
-    AvaPipelineName = 'AddCameraRequestParams_AvaPipelineName'
+    DeviceModelId = 'AddCameraRequestParams_DeviceModelId',
+    AvaPipelineTopologyName = 'AddCameraRequestParams_AvaPipelineTopologyName'
 }
 
 const AvaCameraInterfaceId = 'com_azuremedia_AvaEdgeDevice_OnvifCamera';
@@ -284,7 +286,8 @@ export class CameraGatewayService {
                                 ipAddress: edgeInputCameraCommandData?.ipAddress,
                                 onvifUsername: edgeInputCameraCommandData?.onvifUsername,
                                 onvifPassword: edgeInputCameraCommandData?.onvifPassword,
-                                avaPipelineName: edgeInputCameraCommandData?.avaPipelineName
+                                deviceModelId: edgeInputCameraCommandData?.deviceModelId,
+                                avaPipelineTopologyName: edgeInputCameraCommandData?.avaPipelineTopologyName
                             });
                             break;
 
@@ -518,7 +521,8 @@ export class CameraGatewayService {
                 ipAddress: cameraProps[OnvifCameraCapability.rpIpAddress],
                 onvifUsername: cameraProps[OnvifCameraCapability.rpOnvifUsername],
                 onvifPassword: cameraProps[OnvifCameraCapability.rpOnvifPassword],
-                avaPipelineName: cameraProps[OnvifCameraCapability.rpAvaPipelineName]
+                deviceModelId: cameraProps[OnvifCameraCapability.rpDeviceModelId],
+                avaPipelineTopologyName: cameraProps[OnvifCameraCapability.rpAvaPipelineName]
             };
         }
         catch (ex) {
@@ -553,7 +557,7 @@ export class CameraGatewayService {
                 try {
                     const cameraInfo = await this.validateLeafDeviceOwner(device.id);
                     if (cameraInfo) {
-                        this.server.log([moduleName, 'info'], `Recreating device: ${device.id} - pipeline: ${cameraInfo.avaPipelineName}`);
+                        this.server.log([moduleName, 'info'], `Recreating device: ${device.id} - pipelineName: ${cameraInfo.avaPipelineTopologyName}`);
 
                         await this.createAvaInferenceDevice(cameraInfo);
                     }
@@ -573,7 +577,7 @@ export class CameraGatewayService {
     }
 
     private async createAvaInferenceDevice(cameraInfo: ICameraDeviceProvisionInfo): Promise<IProvisionResult> {
-        this.server.log([moduleName, 'info'], `createAvaInferenceDevice - cameraId: ${cameraInfo.cameraId}, cameraName: ${cameraInfo.cameraName}, pipeline: ${cameraInfo.avaPipelineName}`);
+        this.server.log([moduleName, 'info'], `createAvaInferenceDevice - cameraId: ${cameraInfo.cameraId}, cameraName: ${cameraInfo.cameraName}, pipelineName: ${cameraInfo.avaPipelineTopologyName}`);
 
         let deviceProvisionResult: IProvisionResult = {
             dpsProvisionStatus: false,
@@ -600,7 +604,7 @@ export class CameraGatewayService {
                 || !this.appConfig.scopeId) {
 
                 deviceProvisionResult.dpsProvisionStatus = false;
-                deviceProvisionResult.dpsProvisionMessage = `Missing camera management settings (ScopeId)`;
+                deviceProvisionResult.dpsProvisionMessage = `Missing camera management settings (appHost, apiToken, deviceKey, scopeId)`;
                 this.server.log([moduleName, 'error'], deviceProvisionResult.dpsProvisionMessage);
 
                 return deviceProvisionResult;
@@ -641,17 +645,17 @@ export class CameraGatewayService {
         };
 
         try {
-            const pipelinePackage = await this.server.settings.app.blobStorage.getFileFromBlobStorage(`${cameraInfo.avaPipelineName}.json`);
-            if (!pipelinePackage) {
+            const pipelineTopology = await this.server.settings.app.blobStorage.getFileFromBlobStorage(`${cameraInfo.avaPipelineTopologyName}.json`);
+            if (!pipelineTopology) {
                 deviceProvisionResult.dpsProvisionStatus = false;
-                deviceProvisionResult.dpsProvisionMessage = `No pipeline package was found with name: ${cameraInfo.avaPipelineName}`;
+                deviceProvisionResult.dpsProvisionMessage = `No pipeline package was found with name: ${cameraInfo.avaPipelineTopologyName}`;
 
                 this.server.log([moduleName, 'error'], deviceProvisionResult.dpsProvisionMessage);
 
                 return deviceProvisionResult;
             }
 
-            this.server.log(['ModuleService', 'info'], `Successfully downloaded pipeline package: ${cameraInfo.avaPipelineName}.json`);
+            this.server.log(['ModuleService', 'info'], `Successfully downloaded pipeline package: ${cameraInfo.avaPipelineTopologyName}.json`);
 
             const deviceKey = this.computeDeviceKey(cameraInfo.cameraId, this.appConfig.deviceKey);
 
@@ -662,10 +666,10 @@ export class CameraGatewayService {
                 new ProvisioningTransport(),
                 provisioningSecurityClient);
 
-            this.server.log(['ModuleService', 'info'], `Associating IoT Central templateId: ${pipelinePackage.config.iotcTemplateId}`);
+            this.server.log(['ModuleService', 'info'], `Associating IoT Central templateId: ${cameraInfo.deviceModelId}`);
 
             const provisioningPayload = {
-                iotcModelId: pipelinePackage.config.iotcTemplateId,
+                iotcModelId: cameraInfo.deviceModelId,
                 iotcGateway: {
                     iotcGatewayId: this.server.settings.app.iotCentralModule.deviceId,
                     iotcModuleId: this.server.settings.app.iotCentralModule.moduleId
@@ -694,7 +698,7 @@ export class CameraGatewayService {
             deviceProvisionResult.dpsProvisionMessage = `IoT Central successfully provisioned device: ${cameraInfo.cameraId}`;
             deviceProvisionResult.dpsHubConnectionString = dpsConnectionString;
 
-            deviceProvisionResult.avaInferenceDevice = new AvaDevice(this.server, this.envConfig.onvifModuleId, this.envConfig.avaEdgeModuleId, this.appConfig.scopeId, pipelinePackage, cameraInfo);
+            deviceProvisionResult.avaInferenceDevice = new AvaDevice(this.server, this.envConfig.onvifModuleId, this.envConfig.avaEdgeModuleId, this.appConfig.scopeId, pipelineTopology, cameraInfo);
 
             const { clientConnectionStatus, clientConnectionMessage } = await deviceProvisionResult.avaInferenceDevice.connectDeviceClient(deviceProvisionResult.dpsHubConnectionString);
 
@@ -835,7 +839,8 @@ export class CameraGatewayService {
             ipAddress: commandRequest?.payload?.[AddCameraCommandRequestParams.IpAddress],
             onvifUsername: commandRequest?.payload?.[AddCameraCommandRequestParams.OnvifUsername],
             onvifPassword: commandRequest?.payload?.[AddCameraCommandRequestParams.OnvifPassword],
-            avaPipelineName: commandRequest?.payload?.[AddCameraCommandRequestParams.AvaPipelineName]
+            deviceModelId: commandRequest?.payload?.[AddCameraCommandRequestParams.DeviceModelId],
+            avaPipelineTopologyName: commandRequest?.payload?.[AddCameraCommandRequestParams.AvaPipelineTopologyName]
         };
 
         try {
@@ -844,7 +849,7 @@ export class CameraGatewayService {
                 || !cameraInfo.ipAddress
                 || !cameraInfo.onvifUsername
                 || !cameraInfo.onvifPassword
-                || !cameraInfo.avaPipelineName) {
+                || !cameraInfo.avaPipelineTopologyName) {
                 await commandResponse.send(200, {
                     [CommandResponseParams.StatusCode]: 400,
                     [CommandResponseParams.Message]: `Missing required parameters`,

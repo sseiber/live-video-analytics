@@ -183,6 +183,14 @@
             {
                 "@type": "Property",
                 "displayName": {
+                    "en": "Device Model Id"
+                },
+                "name": "rpDeviceModelId",
+                "schema": "string"
+            },
+            {
+                "@type": "Property",
+                "displayName": {
                     "en": "AVA Pipeline Name"
                 },
                 "name": "rpAvaPipelineName",
@@ -635,15 +643,6 @@
             {
                 "@type": "Property",
                 "displayName": {
-                    "en": "Auto Start"
-                },
-                "name": "wpAutoStart",
-                "writable": true,
-                "schema": "boolean"
-            },
-            {
-                "@type": "Property",
-                "displayName": {
                     "en": "Max Inference Capture Time (sec)"
                 },
                 "name": "wpMaxVideoInferenceTime",
@@ -656,6 +655,28 @@
                     "en": "Start AVA Processing"
                 },
                 "name": "cmStartAvaProcessing",
+                "request": {
+                    "@type": "CommandPayload",
+                    "displayName": {
+                        "en": "Start AVA Processing Request"
+                    },
+                    "name": "StartAvaProcessingRequest",
+                    "schema": {
+                        "@type": "Object",
+                        "displayName": {
+                            "en": "Start AVA Processing Request"
+                        },
+                        "fields": [
+                            {
+                                "displayName": {
+                                    "en": "AVA Pipeline Instance Name"
+                                },
+                                "name": "StartAvaProcessingRequestParams_AvaPipelineInstanceName",
+                                "schema": "string"
+                            }
+                        ]
+                    }
+                },
                 "response": {
                     "@type": "CommandPayload",
                     "displayName": {
