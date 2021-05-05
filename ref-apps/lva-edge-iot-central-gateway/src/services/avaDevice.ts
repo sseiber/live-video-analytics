@@ -2,7 +2,7 @@ import { Server } from '@hapi/hapi';
 import { ICameraDeviceProvisionInfo } from './cameraGateway';
 import {
     OnvifCameraCapability,
-    AiInferenceCapability,
+    UnmodeledTelemetry,
     AvaCameraDevice
 } from './device';
 import * as moment from 'moment';
@@ -46,9 +46,9 @@ export class AvaDevice extends AvaCameraDevice {
             [OnvifCameraCapability.rpIpAddress]: this.cameraInfo.ipAddress,
             [OnvifCameraCapability.rpOnvifUsername]: this.cameraInfo.onvifUsername,
             [OnvifCameraCapability.rpOnvifPassword]: this.cameraInfo.onvifPassword,
-            [OnvifCameraCapability.rpDeviceModelId]: this.cameraInfo.deviceModelId,
+            [OnvifCameraCapability.rpIotcModelId]: this.cameraInfo.iotcModelId,
             [OnvifCameraCapability.rpAvaPipelineName]: this.cameraInfo.avaPipelineTopologyName,
-            [AiInferenceCapability.rpInferenceImageUrl]: ''
+            [OnvifCameraCapability.rpCaptureImageUrl]: ''
         });
     }
 
@@ -58,26 +58,14 @@ export class AvaDevice extends AvaCameraDevice {
             return;
         }
 
+        this.server.log([this.cameraInfo.cameraId, 'info'], `processAvaInferences: received ${inferences.length} inferences`);
+
+        this.lastInferenceTime = moment.utc();
+
         try {
-            let inferenceCount = 0;
-
             for (const inference of inferences) {
-                ++inferenceCount;
-
                 await this.sendMeasurement({
-                    [AiInferenceCapability.tlInference]: inference
-                });
-            }
-
-            if (inferenceCount > 0) {
-                this.lastInferenceTime = moment.utc();
-
-                await this.sendMeasurement({
-                    [AiInferenceCapability.tlInferenceCount]: inferenceCount
-                });
-
-                await this.updateDeviceProperties({
-                    [AiInferenceCapability.rpInferenceImageUrl]: ''
+                    [UnmodeledTelemetry.tlFullInferenceEntity]: inference
                 });
             }
         }

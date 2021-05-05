@@ -7,15 +7,15 @@
         ],
         "@type": "Interface",
         "displayName": {
-            "en": "AVA Edge Device"
+            "en": "AVA Edge Device Model"
         },
-        "description": "AVA Edge Device",
+        "description": "AVA Edge Device Model",
         "extends": [
             "dtmi:com:azuremedia:AvaEdgeDevice:DeviceInformation;1",
             "dtmi:com:azuremedia:AvaEdgeDevice:OnvifCamera;1",
-            "dtmi:com:azuremedia:AvaEdgeDevice:AiInference;1",
             "dtmi:com:azuremedia:AvaEdgeDevice:AvaEdgeOperations;1",
-            "dtmi:com:azuremedia:AvaEdgeDevice:AvaEdgeDiagnostics;1"
+            "dtmi:com:azuremedia:AvaEdgeDevice:AvaEdgeDiagnostics;1",
+            "dtmi:com:azuremedia:AvaEdgeDevice:AiInference;1"
         ],
         "contents": []
     },
@@ -41,7 +41,7 @@
             {
                 "@type": "Property",
                 "displayName": {
-                    "en": "Device model"
+                    "en": "Model"
                 },
                 "name": "rpModel",
                 "schema": "string"
@@ -149,6 +149,17 @@
                 }
             },
             {
+                "@type": [
+                    "Telemetry",
+                    "Event"
+                ],
+                "displayName": {
+                    "en": "Upload Image"
+                },
+                "name": "evUploadImage",
+                "schema": "string"
+            },
+            {
                 "@type": "Property",
                 "displayName": {
                     "en": "Camera Name"
@@ -183,15 +194,15 @@
             {
                 "@type": "Property",
                 "displayName": {
-                    "en": "Device Model Id"
+                    "en": "IoT Central Device Model Id"
                 },
-                "name": "rpDeviceModelId",
+                "name": "rpIotcModelId",
                 "schema": "string"
             },
             {
                 "@type": "Property",
                 "displayName": {
-                    "en": "AVA Pipeline Name"
+                    "en": "AVA Pipeline Topology Name"
                 },
                 "name": "rpAvaPipelineName",
                 "schema": "string"
@@ -257,33 +268,10 @@
             {
                 "@type": "Property",
                 "displayName": {
-                    "en": "Onvif Media Profile"
+                    "en": "Inference Image"
                 },
-                "name": "wpOnvifMediaProfileSelector",
-                "writable": true,
-                "schema": {
-                    "@type": "Enum",
-                    "displayName": {
-                        "en": "Enum"
-                    },
-                    "valueSchema": "string",
-                    "enumValues": [
-                        {
-                            "displayName": {
-                                "en": "Media Profile 1"
-                            },
-                            "enumValue": "mediaprofile1",
-                            "name": "MediaProfileEnum_1"
-                        },
-                        {
-                            "displayName": {
-                                "en": "Media Profile 2"
-                            },
-                            "enumValue": "mediaprofile2",
-                            "name": "MediaProfileEnum_2"
-                        }
-                    ]
-                }
+                "name": "rpCaptureImageUrl",
+                "schema": "string"
             },
             {
                 "@type": "Command",
@@ -291,6 +279,28 @@
                     "en": "Capture Image"
                 },
                 "name": "cmCaptureImage",
+                "request": {
+                    "@type": "CommandPayload",
+                    "displayName": {
+                        "en": "Capture Image Request"
+                    },
+                    "name": "CaptureImageRequest",
+                    "schema": {
+                        "@type": "Object",
+                        "displayName": {
+                            "en": "Capture Image Request"
+                        },
+                        "fields": [
+                            {
+                                "displayName": {
+                                    "en": "Onvif Media Profile Token"
+                                },
+                                "name": "CaptureImageRequestParams_MediaProfileToken",
+                                "schema": "string"
+                            }
+                        ]
+                    }
+                },
                 "response": {
                     "@type": "CommandPayload",
                     "displayName": {
@@ -370,166 +380,6 @@
                         ]
                     }
                 }
-            }
-        ]
-    },
-    {
-        "@id": "dtmi:com:azuremedia:AvaEdgeDevice:AiInference;1",
-        "@context": "dtmi:dtdl:context;2",
-        "@type": "Interface",
-        "displayName": {
-            "en": "AI Inference Interface"
-        },
-        "contents": [
-            {
-                "@type": "Telemetry",
-                "displayName": {
-                    "en": "Inference Count"
-                },
-                "name": "tlInferenceCount",
-                "schema": "integer"
-            },
-            {
-                "@type": "Telemetry",
-                "displayName": {
-                    "en": "Inference"
-                },
-                "name": "tlInference",
-                "schema": {
-                    "@type": "Object",
-                    "displayName": {
-                        "en": "Object"
-                    },
-                    "fields": [
-                        {
-                            "displayName": {
-                                "en": "type"
-                            },
-                            "name": "type",
-                            "schema": "string"
-                        },
-                        {
-                            "displayName": {
-                                "en": "entity"
-                            },
-                            "name": "entity",
-                            "schema": {
-                                "@type": "Object",
-                                "displayName": {
-                                    "en": "Object"
-                                },
-                                "fields": [
-                                    {
-                                        "displayName": {
-                                            "en": "box"
-                                        },
-                                        "name": "box",
-                                        "schema": {
-                                            "@type": "Object",
-                                            "displayName": {
-                                                "en": "Object"
-                                            },
-                                            "fields": [
-                                                {
-                                                    "displayName": {
-                                                        "en": "l"
-                                                    },
-                                                    "name": "l",
-                                                    "schema": "double"
-                                                },
-                                                {
-                                                    "displayName": {
-                                                        "en": "t"
-                                                    },
-                                                    "name": "t",
-                                                    "schema": "double"
-                                                },
-                                                {
-                                                    "displayName": {
-                                                        "en": "w"
-                                                    },
-                                                    "name": "w",
-                                                    "schema": "double"
-                                                },
-                                                {
-                                                    "displayName": {
-                                                        "en": "h"
-                                                    },
-                                                    "name": "h",
-                                                    "schema": "double"
-                                                }
-                                            ]
-                                        }
-                                    },
-                                    {
-                                        "displayName": {
-                                            "en": "tag"
-                                        },
-                                        "name": "tag",
-                                        "schema": {
-                                            "@type": "Object",
-                                            "displayName": {
-                                                "en": "Object"
-                                            },
-                                            "fields": [
-                                                {
-                                                    "displayName": {
-                                                        "en": "confidence"
-                                                    },
-                                                    "name": "confidence",
-                                                    "schema": "double"
-                                                },
-                                                {
-                                                    "displayName": {
-                                                        "en": "value"
-                                                    },
-                                                    "name": "value",
-                                                    "schema": "string"
-                                                }
-                                            ]
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                }
-            },
-            {
-                "@type": [
-                    "Telemetry",
-                    "Event"
-                ],
-                "displayName": {
-                    "en": "Inference Event Video"
-                },
-                "name": "evInferenceEventVideoUrl",
-                "schema": "string"
-            },
-            {
-                "@type": "Property",
-                "displayName": {
-                    "en": "Inference Video"
-                },
-                "name": "rpInferenceVideoUrl",
-                "schema": "string"
-            },
-            {
-                "@type": "Property",
-                "displayName": {
-                    "en": "Inference Image"
-                },
-                "name": "rpInferenceImageUrl",
-                "schema": "string"
-            },
-            {
-                "@type": "Property",
-                "displayName": {
-                    "en": "Inference Timeout (sec)"
-                },
-                "name": "wpInferenceTimeout",
-                "writable": true,
-                "schema": "integer"
             }
         ]
     },
@@ -619,33 +469,20 @@
                 "schema": "string"
             },
             {
-                "@type": [
-                    "Telemetry",
-                    "Event"
-                ],
-                "displayName": {
-                    "en": "Start AVA Command"
-                },
-                "name": "evStartAvaPipelineCommandReceived",
-                "schema": "string"
-            },
-            {
-                "@type": [
-                    "Telemetry",
-                    "Event"
-                ],
-                "displayName": {
-                    "en": "Stop AVA Command"
-                },
-                "name": "evStopAvaPipelineCommandReceived",
-                "schema": "string"
-            },
-            {
                 "@type": "Property",
                 "displayName": {
                     "en": "Max Inference Capture Time (sec)"
                 },
                 "name": "wpMaxVideoInferenceTime",
+                "writable": true,
+                "schema": "integer"
+            },
+            {
+                "@type": "Property",
+                "displayName": {
+                    "en": "Host for Video Playback Links"
+                },
+                "name": "wpVideoPlaybackHost",
                 "writable": true,
                 "schema": "integer"
             },
@@ -672,6 +509,13 @@
                                     "en": "AVA Pipeline Instance Name"
                                 },
                                 "name": "StartAvaProcessingRequestParams_AvaPipelineInstanceName",
+                                "schema": "string"
+                            },
+                            {
+                                "displayName": {
+                                    "en": "Onvif Media Profile Token"
+                                },
+                                "name": "StartAvaProcessingRequestParams_MediaProfileToken",
                                 "schema": "string"
                             }
                         ]
@@ -874,6 +718,73 @@
                 "name": "wpDebugTelemetry",
                 "writable": true,
                 "schema": "boolean"
+            }
+        ]
+    },
+    {
+        "@id": "dtmi:com:azuremedia:AvaEdgeDevice:AiInference;1",
+        "@context": "dtmi:dtdl:context;2",
+        "@type": "Interface",
+        "displayName": {
+            "en": "AI Inference Interface"
+        },
+        "contents": [
+            {
+                "@type": "Telemetry",
+                "displayName": {
+                    "en": "Inference Entity"
+                },
+                "name": "tlInferenceEntity",
+                "schema": {
+                    "@type": "Object",
+                    "displayName": {
+                        "en": "Object"
+                    },
+                    "fields": [
+                        {
+                            "displayName": {
+                                "en": "value"
+                            },
+                            "name": "value",
+                            "schema": "string"
+                        },
+                        {
+                            "displayName": {
+                                "en": "confidence"
+                            },
+                            "name": "confidence",
+                            "schema": "double"
+                        }
+                    ]
+                }
+            },
+            {
+                "@type": [
+                    "Telemetry",
+                    "Event"
+                ],
+                "displayName": {
+                    "en": "Inference Event Video"
+                },
+                "name": "evInferenceEventVideoUrl",
+                "schema": "string"
+            },
+            {
+                "@type": "Property",
+                "displayName": {
+                    "en": "Inference Video"
+                },
+                "name": "rpInferenceVideoUrl",
+                "schema": "string"
+            },
+            {
+                "@type": "Property",
+                "displayName": {
+                    "en": "Inference Timeout (sec)"
+                },
+                "name": "wpInferenceTimeout",
+                "writable": true,
+                "schema": "integer"
             }
         ]
     }

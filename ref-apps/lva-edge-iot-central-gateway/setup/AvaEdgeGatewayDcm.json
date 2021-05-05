@@ -83,9 +83,9 @@
             },
             {
                 "@type": "Property",
-                "comment": "Device model name or ID. Ex. Surface Book 2.",
+                "comment": "Model name or ID. Ex. Surface Book 2.",
                 "displayName": {
-                    "en": "Device model"
+                    "en": "Model"
                 },
                 "name": "model",
                 "schema": "string"
@@ -382,9 +382,9 @@
                             },
                             {
                                 "displayName": {
-                                    "en": "Device Model Id"
+                                    "en": "IoT Central Device Model Id"
                                 },
-                                "name": "AddCameraRequestParams_DeviceModelId",
+                                "name": "AddCameraRequestParams_IotcModelId",
                                 "schema": "string"
                             },
                             {

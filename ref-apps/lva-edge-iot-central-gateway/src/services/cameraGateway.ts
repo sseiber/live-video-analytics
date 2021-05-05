@@ -26,7 +26,7 @@ import * as Wreck from '@hapi/wreck';
 import { bind, emptyObj, forget } from '../utils';
 
 const moduleName = 'CameraGatewayService';
-const iotcOutput = 'iotc';
+const IotcOutputName = 'iotc';
 
 type DeviceOperation = 'DELETE_CAMERA' | 'SEND_EVENT' | 'SEND_INFERENCES';
 
@@ -48,7 +48,7 @@ export interface ICameraDeviceProvisionInfo {
     ipAddress: string;
     onvifUsername: string;
     onvifPassword: string;
-    deviceModelId: string;
+    iotcModelId: string;
     avaPipelineTopologyName: string;
 }
 
@@ -106,7 +106,7 @@ enum AddCameraCommandRequestParams {
     IpAddress = 'AddCameraRequestParams_IpAddress',
     OnvifUsername = 'AddCameraRequestParams_OnvifUsername',
     OnvifPassword = 'AddCameraRequestParams_OnvifPassword',
-    DeviceModelId = 'AddCameraRequestParams_DeviceModelId',
+    IotcModelId = 'AddCameraRequestParams_IotcModelId',
     AvaPipelineTopologyName = 'AddCameraRequestParams_AvaPipelineTopologyName'
 }
 
@@ -227,7 +227,12 @@ export class CameraGatewayService {
                 switch (setting) {
                     case AvaGatewayCapability.wpDebugTelemetry:
                     case AvaGatewayCapability.wpDebugRoutedMessage:
-                        patchedProperties[setting] = this.moduleSettings[setting] = value || false;
+                        patchedProperties[setting] = {
+                            value: this.moduleSettings[setting] = value || false,
+                            ac: 200,
+                            ad: 'completed',
+                            av: desiredChangedSettings['$version']
+                        };
                         break;
 
                     default:
@@ -286,7 +291,7 @@ export class CameraGatewayService {
                                 ipAddress: edgeInputCameraCommandData?.ipAddress,
                                 onvifUsername: edgeInputCameraCommandData?.onvifUsername,
                                 onvifPassword: edgeInputCameraCommandData?.onvifPassword,
-                                deviceModelId: edgeInputCameraCommandData?.deviceModelId,
+                                iotcModelId: edgeInputCameraCommandData?.iotcModelId,
                                 avaPipelineTopologyName: edgeInputCameraCommandData?.avaPipelineTopologyName
                             });
                             break;
@@ -316,9 +321,12 @@ export class CameraGatewayService {
                 case AvaGatewayEdgeInputs.AvaTelemetry: {
                     const cameraId = AvaPipeline.getCameraIdFromAvaMessage(message);
                     if (!cameraId) {
-                        this.server.log([moduleName, 'error'], `Received ${inputName} message but no cameraId was found in the subject property`);
-                        this.server.log([moduleName, 'error'], `${inputName} eventType: ${AvaPipeline.getAvaMessageProperty(message, 'eventType')}`);
-                        this.server.log([moduleName, 'error'], `${inputName} subject: ${AvaPipeline.getAvaMessageProperty(message, 'subject')}`);
+                        if (this.debugTelemetry()) {
+                            this.server.log([moduleName, 'error'], `Received ${inputName} message but no cameraId was found in the subject property`);
+                            this.server.log([moduleName, 'error'], `${inputName} eventType: ${AvaPipeline.getAvaMessageProperty(message, 'eventType')}`);
+                            this.server.log([moduleName, 'error'], `${inputName} subject: ${AvaPipeline.getAvaMessageProperty(message, 'subject')}`);
+                        }
+
                         break;
                     }
 
@@ -375,7 +383,7 @@ export class CameraGatewayService {
             [AvaGatewayCapability.stIoTCentralClientState]: IoTCentralClientState.Connected,
             [AvaGatewayCapability.stModuleState]: ModuleState.Active,
             [AvaGatewayCapability.evModuleStarted]: 'Module initialization'
-        }, iotcOutput);
+        }, IotcOutputName);
 
         await this.recreateExistingDevices();
     }
@@ -417,7 +425,7 @@ export class CameraGatewayService {
 
                 healthTelemetry[AvaGatewayCapability.tlSystemHeartbeat] = healthState;
 
-                await this.server.settings.app.iotCentralModule.sendMeasurement(healthTelemetry, iotcOutput);
+                await this.server.settings.app.iotCentralModule.sendMeasurement(healthTelemetry, IotcOutputName);
             }
 
             this.healthState = healthState;
@@ -452,7 +460,7 @@ export class CameraGatewayService {
                 [AvaGatewayCapability.evModuleRestart]: reason,
                 [AvaGatewayCapability.stModuleState]: ModuleState.Inactive,
                 [AvaGatewayCapability.evModuleStopped]: 'Module restart'
-            }, iotcOutput);
+            }, IotcOutputName);
 
             if (timeout > 0) {
                 await new Promise((resolve) => {
@@ -521,7 +529,7 @@ export class CameraGatewayService {
                 ipAddress: cameraProps[OnvifCameraCapability.rpIpAddress],
                 onvifUsername: cameraProps[OnvifCameraCapability.rpOnvifUsername],
                 onvifPassword: cameraProps[OnvifCameraCapability.rpOnvifPassword],
-                deviceModelId: cameraProps[OnvifCameraCapability.rpDeviceModelId],
+                iotcModelId: cameraProps[OnvifCameraCapability.rpIotcModelId],
                 avaPipelineTopologyName: cameraProps[OnvifCameraCapability.rpAvaPipelineName]
             };
         }
@@ -617,7 +625,7 @@ export class CameraGatewayService {
 
                 await this.server.settings.app.iotCentralModule.sendMeasurement({
                     [AvaGatewayCapability.evCreateCamera]: cameraInfo.cameraId
-                }, iotcOutput);
+                }, IotcOutputName);
 
                 this.server.log([moduleName, 'info'], `Succesfully provisioned camera device with id: ${cameraInfo.cameraId}`);
             }
@@ -666,10 +674,10 @@ export class CameraGatewayService {
                 new ProvisioningTransport(),
                 provisioningSecurityClient);
 
-            this.server.log(['ModuleService', 'info'], `Associating IoT Central templateId: ${cameraInfo.deviceModelId}`);
+            this.server.log(['ModuleService', 'info'], `Associating IoT Central templateId: ${cameraInfo.iotcModelId}`);
 
             const provisioningPayload = {
-                iotcModelId: cameraInfo.deviceModelId,
+                iotcModelId: cameraInfo.iotcModelId,
                 iotcGateway: {
                     iotcGatewayId: this.server.settings.app.iotCentralModule.deviceId,
                     iotcModuleId: this.server.settings.app.iotCentralModule.moduleId
@@ -743,7 +751,7 @@ export class CameraGatewayService {
 
                 await this.server.settings.app.iotCentralModule.sendMeasurement({
                     [AvaGatewayCapability.evDeleteCamera]: cameraId
-                }, iotcOutput);
+                }, IotcOutputName);
 
                 this.server.log([moduleName, 'info'], `Succesfully de-provisioned camera device with id: ${cameraId}`);
 
@@ -839,7 +847,7 @@ export class CameraGatewayService {
             ipAddress: commandRequest?.payload?.[AddCameraCommandRequestParams.IpAddress],
             onvifUsername: commandRequest?.payload?.[AddCameraCommandRequestParams.OnvifUsername],
             onvifPassword: commandRequest?.payload?.[AddCameraCommandRequestParams.OnvifPassword],
-            deviceModelId: commandRequest?.payload?.[AddCameraCommandRequestParams.DeviceModelId],
+            iotcModelId: commandRequest?.payload?.[AddCameraCommandRequestParams.IotcModelId],
             avaPipelineTopologyName: commandRequest?.payload?.[AddCameraCommandRequestParams.AvaPipelineTopologyName]
         };
 

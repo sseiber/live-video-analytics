@@ -30,6 +30,8 @@ export interface IIotCentralModulePluginOptions {
     debugTelemetry(): boolean;
     onHandleModuleProperties(desiredProps: any): Promise<void>;
     onHandleDownstreamMessages?(inputName: string, message: IoTMessage): Promise<void>;
+    onModuleConnect?(): void;
+    onModuleDisconnect?(): void;
     onModuleClientError?(error: Error): void;
     onModuleReady(): Promise<void>;
 }
@@ -227,10 +229,15 @@ class IotCentralModule implements IIotCentralModule {
         let result = true;
 
         if (this.moduleClient) {
-            this.moduleTwin?.removeAllListeners();
-            this.moduleClient.removeAllListeners();
+            if (this.moduleTwin) {
+                this.moduleTwin.removeAllListeners();
+            }
 
-            await this.moduleClient.close();
+            if (this.moduleClient) {
+                this.moduleClient.removeAllListeners();
+
+                await this.moduleClient.close();
+            }
 
             this.moduleClient = null;
             this.moduleTwin = null;
@@ -255,6 +262,10 @@ class IotCentralModule implements IIotCentralModule {
         }
 
         try {
+            this.moduleClient.on('connect', this.onModuleConnect);
+            this.moduleClient.on('disconnect', this.onModuleDisconnect);
+            this.moduleClient.on('error', this.onModuleClientError);
+
             await this.moduleClient.open();
 
             this.server.log([moduleName, 'info'], `Client is connected`);
@@ -265,8 +276,6 @@ class IotCentralModule implements IIotCentralModule {
             this.moduleTwin = await this.moduleClient.getTwin();
             this.moduleTwin.on('properties.desired', this.onHandleModuleProperties);
             this.moduleClient.on('inputMessage', this.onHandleDownstreamMessages);
-
-            this.moduleClient.on('error', this.onModuleClientError);
 
             this.server.log([moduleName, 'info'], `IoT Central successfully connected module: ${process.env.IOTEDGE_MODULEID}, instance id: ${process.env.IOTEDGE_DEVICEID}`);
         }
@@ -302,6 +311,26 @@ class IotCentralModule implements IIotCentralModule {
     }
 
     @bind
+    private onModuleConnect() {
+        if (this.options.onModuleConnect) {
+            this.options.onModuleConnect();
+        }
+        else {
+            this.server.log([moduleName, 'info'], `The module received a connect event`);
+        }
+    }
+
+    @bind
+    private onModuleDisconnect() {
+        if (this.options.onModuleDisconnect) {
+            this.options.onModuleDisconnect();
+        }
+        else {
+            this.server.log([moduleName, 'info'], `The module received a disconnect event`);
+        }
+    }
+
+    @bind
     private onModuleClientError(error: Error) {
         try {
             this.moduleClient = null;
@@ -310,8 +339,9 @@ class IotCentralModule implements IIotCentralModule {
             if (this.options.onModuleClientError) {
                 this.options.onModuleClientError(error);
             }
-
-            this.server.log([moduleName, 'error'], `Module client connection error: ${error.message}`);
+            else {
+                this.server.log([moduleName, 'error'], `Module client connection error: ${error.message}`);
+            }
         }
         catch (ex) {
             this.server.log([moduleName, 'error'], `Module client connection error: ${ex.message}`);

@@ -16,13 +16,13 @@ ADD .eslintrc.json ${WORKINGDIR}/.eslintrc.json
 ADD tsconfig.json ${WORKINGDIR}/tsconfig.json
 ADD src ${WORKINGDIR}/src
 
-RUN npm install -q && \
-    ./node_modules/typescript/bin/tsc -p . && \
-    npm run eslint && \
-    npm prune --production && \
-    rm -f .eslintrc.json && \
-    rm -f tsconfig.json && \
-    rm -rf src
+RUN npm install -q \
+    && npm run build \
+    && npm run eslint \
+    && npm prune --production \
+    && rm -f .eslintrc.json \
+    && rm -f tsconfig.json \
+    && rm -rf src
 
 HEALTHCHECK \
     --interval=30s \

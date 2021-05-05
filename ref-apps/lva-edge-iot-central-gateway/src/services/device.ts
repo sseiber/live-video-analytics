@@ -36,11 +36,6 @@ export interface IOnvifCameraInformation {
     rpMediaProfile2: IMediaProfileInfo;
 }
 
-enum OnvifMediaProfile {
-    MediaProfile1 = 'mediaprofile1',
-    MediaProfile2 = 'mediaprofile2'
-}
-
 enum IoTCentralClientState {
     Disconnected = 'disconnected',
     Connected = 'connected'
@@ -56,22 +51,21 @@ export enum OnvifCameraCapability {
     stIoTCentralClientState = 'stIoTCentralClientState',
     stCameraState = 'stCameraState',
     rpCameraName = 'rpCameraName',
+    evUploadImage = 'evUploadImage',
     rpIpAddress = 'rpIpAddress',
     rpOnvifUsername = 'rpOnvifUsername',
     rpOnvifPassword = 'rpOnvifPassword',
-    rpDeviceModelId = 'rpDeviceModelId',
+    rpIotcModelId = 'rpIotcModelId',
     rpAvaPipelineName = 'rpAvaPipelineName',
     rpMediaProfile1 = 'rpMediaProfile1',
     rpMediaProfile2 = 'rpMediaProfile2',
-    wpOnvifMediaProfileSelector = 'wpOnvifMediaProfileSelector',
+    rpCaptureImageUrl = 'rpCaptureImageUrl',
     wpVideoPlaybackHost = 'wpVideoPlaybackHost',
     cmCaptureImage = 'cmCaptureImage',
     cmRestartCamera = 'cmRestartCamera'
 }
 
 interface IOnvifCameraSettings {
-    mediaProfiles: IMediaProfileInfo[];
-    [OnvifCameraCapability.wpOnvifMediaProfileSelector]: string;
     [OnvifCameraCapability.wpVideoPlaybackHost]: string;
 }
 
@@ -80,7 +74,18 @@ const defaultInferenceTimeout = 5;
 const defaultMaxVideoInferenceTime = 10;
 
 enum StartAvaProcessingCommandRequestParams {
-    AvaPipelineInstanceName = 'StartAvaProcessingRequestParams_AvaPipelineInstanceName'
+    AvaPipelineInstanceName = 'StartAvaProcessingRequestParams_AvaPipelineInstanceName',
+    MediaProfileToken = 'StartAvaProcessingRequestParams_MediaProfileToken'
+}
+
+enum CaptureImageCommandRequestParams {
+    MediaProfileToken = 'CaptureImageRequestParams_MediaProfileToken'
+}
+
+enum CommandResponseParams {
+    StatusCode = 'CommandResponseParams_StatusCode',
+    Message = 'CommandResponseParams_Message',
+    Data = 'CommandResponseParams_Data'
 }
 
 enum AvaEdgeOperationsCapability {
@@ -91,8 +96,6 @@ enum AvaEdgeOperationsCapability {
     evRecordingStarted = 'evRecordingStarted',
     evRecordingStopped = 'evRecordingStopped',
     evRecordingAvailable = 'evRecordingAvailable',
-    evStartAvaPipelineCommandReceived = 'evStartAvaPipelineCommandReceived',
-    evStopAvaPipelineCommandReceived = 'evStopAvaPipelineCommandReceived',
     wpMaxVideoInferenceTime = 'wpMaxVideoInferenceTime',
     cmStartAvaProcessing = 'cmStartAvaProcessing',
     cmStopAvaProcessing = 'cmStopAvaProcessing'
@@ -120,12 +123,14 @@ interface IAvaEdgeDiagnosticsSettings {
 }
 
 export enum AiInferenceCapability {
-    tlInferenceCount = 'tlInferenceCount',
-    tlInference = 'tlInference',
+    tlInferenceEntity = 'tlInferenceEntity',
     evInferenceEventVideoUrl = 'evInferenceEventVideoUrl',
     rpInferenceVideoUrl = 'rpInferenceVideoUrl',
-    rpInferenceImageUrl = 'rpInferenceImageUrl',
     wpInferenceTimeout = 'wpInferenceTimeout'
+}
+
+export enum UnmodeledTelemetry {
+    tlFullInferenceEntity = 'tlFullInferenceEntity',
 }
 
 interface IAiInferenceSettings {
@@ -149,8 +154,6 @@ export abstract class AvaCameraDevice {
     protected lastInferenceTime: moment.Moment = moment.utc(0);
     protected videoInferenceStartTime: moment.Moment = moment.utc();
     protected onvifCameraSettings: IOnvifCameraSettings = {
-        mediaProfiles: [],
-        wpOnvifMediaProfileSelector: OnvifMediaProfile.MediaProfile1,
         wpVideoPlaybackHost: defaultVideoPlaybackHost
     };
     protected avaEdgeOperationsSettings: IAvaEdgeOperationsSettings = {
@@ -228,10 +231,15 @@ export abstract class AvaCameraDevice {
 
             await this.avaPipeline.deleteAvaPipeline();
 
-            this.deviceTwin?.removeAllListeners();
-            this.deviceClient.removeAllListeners();
+            if (this.deviceTwin) {
+                this.deviceTwin.removeAllListeners();
+            }
 
-            await this.deviceClient.close();
+            if (this.deviceClient) {
+                this.deviceClient.removeAllListeners();
+
+                await this.deviceClient.close();
+            }
 
             this.deviceClient = null;
             this.deviceTwin = null;
@@ -349,13 +357,6 @@ export abstract class AvaCameraDevice {
                     Password: this.cameraInfo.onvifPassword
                 });
 
-            this.onvifCameraSettings.mediaProfiles = (mediaProfileResult.payload || []).map((profile) => {
-                return {
-                    mediaProfileName: profile.MediaProfileName,
-                    mediaProfileToken: profile.MediaProfileToken
-                };
-            });
-
             return {
                 rpManufacturer: deviceInfoResult.payload?.Manufacturer || '',
                 rpModel: deviceInfoResult.payload?.Model || '',
@@ -380,7 +381,7 @@ export abstract class AvaCameraDevice {
         return;
     }
 
-    protected async getRtspStreamUrl(): Promise<string> {
+    protected async getRtspStreamUrl(mediaProfileToken: string): Promise<string> {
         let rtspUrl = '';
 
         try {
@@ -388,7 +389,7 @@ export abstract class AvaCameraDevice {
                 Address: this.cameraInfo.ipAddress,
                 Username: this.cameraInfo.onvifUsername,
                 Password: this.cameraInfo.onvifPassword,
-                MediaProfileToken: this.onvifCameraSettings.mediaProfiles[this.onvifCameraSettings.wpOnvifMediaProfileSelector === OnvifMediaProfile.MediaProfile1 ? 0 : 1].mediaProfileToken
+                MediaProfileToken: mediaProfileToken
             };
 
             const serviceResponse = await this.iotCentralModule.invokeDirectMethod(
@@ -428,24 +429,40 @@ export abstract class AvaCameraDevice {
                     : desiredChangedSettings[setting];
 
                 switch (setting) {
-                    case OnvifCameraCapability.wpOnvifMediaProfileSelector:
-                        patchedProperties[setting] = (this.onvifCameraSettings[setting] as any) = value || OnvifMediaProfile.MediaProfile1;
-                        break;
-
                     case OnvifCameraCapability.wpVideoPlaybackHost:
-                        patchedProperties[setting] = (this.onvifCameraSettings[setting] as any) = value || defaultVideoPlaybackHost;
+                        patchedProperties[setting] = {
+                            value: (this.onvifCameraSettings[setting] as any) = value || defaultVideoPlaybackHost,
+                            ac: 200,
+                            ad: 'completed',
+                            av: desiredChangedSettings['$version']
+                        };
                         break;
 
                     case AvaEdgeOperationsCapability.wpMaxVideoInferenceTime:
-                        patchedProperties[setting] = (this.avaEdgeOperationsSettings[setting] as any) = value || defaultMaxVideoInferenceTime;
+                        patchedProperties[setting] = {
+                            value: (this.avaEdgeOperationsSettings[setting] as any) = value || defaultMaxVideoInferenceTime,
+                            ac: 200,
+                            ad: 'completed',
+                            av: desiredChangedSettings['$version']
+                        };
                         break;
 
                     case AvaEdgeDiagnosticsCapability.wpDebugTelemetry:
-                        patchedProperties[setting] = (this.avaEdgeDiagnosticsSettings[setting] as any) = value || false;
+                        patchedProperties[setting] = {
+                            value: (this.avaEdgeDiagnosticsSettings[setting] as any) = value || false,
+                            ac: 200,
+                            ad: 'completed',
+                            av: desiredChangedSettings['$version']
+                        };
                         break;
 
                     case AiInferenceCapability.wpInferenceTimeout:
-                        patchedProperties[setting] = (this.aiInferenceSettings[setting] as any) = value || defaultInferenceTimeout;
+                        patchedProperties[setting] = {
+                            value: (this.aiInferenceSettings[setting] as any) = value || defaultInferenceTimeout,
+                            ac: 200,
+                            ad: 'completed',
+                            av: desiredChangedSettings['$version']
+                        };
                         break;
 
                     default:
@@ -507,11 +524,7 @@ export abstract class AvaCameraDevice {
         }
     }
 
-    private async startAvaProcessingInternal(pipelineInstanceName: string): Promise<boolean> {
-        await this.sendMeasurement({
-            [AvaEdgeOperationsCapability.evStartAvaPipelineCommandReceived]: this.cameraInfo.cameraId
-        });
-
+    private async startAvaProcessingInternal(pipelineInstanceName: string, mediaProfileToken: string): Promise<boolean> {
         const pipelineInstance = await this.server.settings.app.blobStorage.getFileFromBlobStorage(`${pipelineInstanceName}.json`);
         if (!pipelineInstance) {
             this.server.log(['ModuleService', 'error'], `Could not retrieve ${pipelineInstanceName} instance configuration`);
@@ -519,7 +532,7 @@ export abstract class AvaCameraDevice {
 
         this.server.log(['ModuleService', 'info'], `Successfully downloaded ${pipelineInstanceName} instance configuration`);
 
-        const rtspUrl = await this.getRtspStreamUrl();
+        const rtspUrl = await this.getRtspStreamUrl(mediaProfileToken);
 
         const startAvaPipelineResult = await this.avaPipeline.startAvaPipeline(pipelineInstance, {
             rtspUrl,
@@ -538,6 +551,13 @@ export abstract class AvaCameraDevice {
         });
 
         return startAvaPipelineResult;
+    }
+
+    private async stopAvaProcessingInternal(): Promise<boolean> {
+        clearInterval(this.inferenceInterval);
+        this.inferenceInterval = null;
+
+        return this.avaPipeline.stopAvaPipeline();
     }
 
     private async inferenceTimer(): Promise<void> {
@@ -560,11 +580,6 @@ export abstract class AvaCameraDevice {
                             this.videoInferenceStartTime,
                             Math.trunc(videoInferenceDuration.asSeconds()))
                     });
-
-                    // await this.updateDeviceProperties({
-                    //     // eslint-disable-next-line max-len
-                    //     [AiInferenceCapability.rpInferenceImageUrl]: ''
-                    // });
                 }
 
                 this.videoInferenceStartTime = moment.utc();
@@ -601,10 +616,15 @@ export abstract class AvaCameraDevice {
         };
 
         if (this.deviceClient) {
-            this.deviceTwin?.removeAllListeners();
-            this.deviceTwin.removeAllListeners();
+            if (this.deviceTwin) {
+                this.deviceTwin.removeAllListeners();
+            }
 
-            await this.deviceClient.close();
+            if (this.deviceClient) {
+                this.deviceTwin.removeAllListeners();
+
+                await this.deviceClient.close();
+            }
 
             this.deviceClient = null;
             this.deviceTwin = null;
@@ -633,6 +653,10 @@ export abstract class AvaCameraDevice {
         }
 
         try {
+            this.deviceClient.on('connect', this.onDeviceClientConnect);
+            this.deviceClient.on('disconnect', this.onDeviceClientDisconnect);
+            this.deviceClient.on('error', this.onDeviceClientError);
+
             await this.deviceClient.open();
 
             this.server.log([this.cameraInfo.cameraId, 'info'], `Device client is connected`);
@@ -640,10 +664,10 @@ export abstract class AvaCameraDevice {
             this.deviceTwin = await this.deviceClient.getTwin();
             this.deviceTwin.on('properties.desired', devicePropertiesHandler);
 
-            this.deviceClient.on('error', this.onDeviceClientError);
-
             this.deviceClient.onDeviceMethod(AvaEdgeOperationsCapability.cmStartAvaProcessing, this.startAvaProcessingDirectMethod);
             this.deviceClient.onDeviceMethod(AvaEdgeOperationsCapability.cmStopAvaProcessing, this.stopAvaProcessingDirectMethod);
+            this.deviceClient.onDeviceMethod(OnvifCameraCapability.cmCaptureImage, this.captureImageDirectMethod);
+            this.deviceClient.onDeviceMethod(OnvifCameraCapability.cmRestartCamera, this.restartCameraDirectMethod);
 
             result.clientConnectionStatus = true;
         }
@@ -658,9 +682,103 @@ export abstract class AvaCameraDevice {
     }
 
     @bind
+    private onDeviceClientConnect() {
+        this.server.log([this.cameraInfo.cameraId, 'info'], `The module received a connect event`);
+    }
+
+    @bind
+    private onDeviceClientDisconnect() {
+        this.server.log([this.cameraInfo.cameraId, 'info'], `The module received a disconnect event`);
+    }
+
+    @bind
     private onDeviceClientError(error: Error) {
+        this.deviceClient = null;
+        this.deviceTwin = null;
+
         this.server.log([this.cameraInfo.cameraId, 'error'], `Device client connection error: ${error.message}`);
         this.healthState = HealthState.Critical;
+    }
+
+    private async captureImage(mediaProfileToken: string): Promise<boolean> {
+        let result = true;
+
+        try {
+            const requestParams = {
+                Address: this.cameraInfo.ipAddress,
+                Username: this.cameraInfo.onvifUsername,
+                Password: this.cameraInfo.onvifPassword,
+                MediaProfileToken: mediaProfileToken
+            };
+
+            this.server.log([this.cameraInfo.cameraId, 'info'], `Starting onvif image capture...`);
+
+            const captureImageResult = await this.server.settings.app.iotCentralModule.invokeDirectMethod(
+                this.onvifModuleId,
+                'GetSnapshot',
+                requestParams);
+
+            let blobUrl;
+
+            if (captureImageResult.status >= 200 && captureImageResult.status < 300) {
+                this.server.log([this.cameraInfo.cameraId, 'info'], `Image capture complete, uploading image data to blob storage...`);
+
+                blobUrl = await this.blobStore.uploadBase64ImageToContainer(captureImageResult.payload as string);
+
+                this.server.log([this.cameraInfo.cameraId, 'info'], `Blob store image transfer complete`);
+            }
+
+            if (blobUrl) {
+                await this.sendMeasurement({
+                    [OnvifCameraCapability.evUploadImage]: blobUrl
+                });
+
+                await this.updateDeviceProperties({
+                    [OnvifCameraCapability.rpCaptureImageUrl]: blobUrl
+                });
+            }
+            else {
+                this.server.log([this.cameraInfo.cameraId, 'error'], `An error occurred while uploading the captured image to the blob storage service`);
+                result = false;
+            }
+        }
+        catch (ex) {
+            this.server.log([this.cameraInfo.cameraId, 'error'], `An error occurred while attempting to capture an image on device: ${this.cameraInfo.cameraId}: ${ex.message}`);
+            result = false;
+        }
+
+        return result;
+    }
+
+    private async restartCamera(): Promise<boolean> {
+        let result = true;
+
+        try {
+            const requestParams = {
+                Address: this.cameraInfo.ipAddress,
+                Username: this.cameraInfo.onvifUsername,
+                Password: this.cameraInfo.onvifPassword
+            };
+
+            const restartResult = await this.server.settings.app.iotCentralModule.invokeDirectMethod(
+                this.onvifModuleId,
+                'Reboot',
+                requestParams);
+
+            if (restartResult.status >= 200 && restartResult.status < 300) {
+                this.server.log([this.cameraInfo.cameraId, 'info'], `Camera restart command completed`);
+            }
+            else {
+                this.server.log([this.cameraInfo.cameraId, 'error'], `An error occurred while attempting to restart the camera device`);
+                result = false;
+            }
+        }
+        catch (ex) {
+            this.server.log([this.cameraInfo.cameraId, 'error'], `Error while attempting to restart camera (${this.cameraInfo.cameraId}): ${ex.message}`);
+            result = false;
+        }
+
+        return result;
     }
 
     @bind
@@ -668,15 +786,40 @@ export abstract class AvaCameraDevice {
     private async startAvaProcessingDirectMethod(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
         this.server.log([this.cameraInfo.cameraId, 'info'], `${AvaEdgeOperationsCapability.cmStartAvaProcessing} command received`);
 
+        const startAvaProcessingResponse = {
+            [CommandResponseParams.StatusCode]: 200,
+            [CommandResponseParams.Message]: '',
+            [CommandResponseParams.Data]: ''
+        };
+
+        const pipelineInstanceName = commandRequest?.payload?.[StartAvaProcessingCommandRequestParams.AvaPipelineInstanceName];
+        const mediaProfileToken = commandRequest?.payload?.[StartAvaProcessingCommandRequestParams.MediaProfileToken];
+
         try {
-            const startAvaPipelineResult = await this.startAvaProcessingInternal(commandRequest?.payload?.[StartAvaProcessingCommandRequestParams.AvaPipelineInstanceName]);
+            if (!pipelineInstanceName || !mediaProfileToken) {
+                const errorMessage = `Missing required parameters for command ${AvaEdgeOperationsCapability.cmStartAvaProcessing}`;
 
-            const responseMessage = `AVA Edge start pipeline request: ${startAvaPipelineResult ? 'succeeded' : 'failed'}`;
-            this.server.log([this.cameraInfo.cameraId, 'info'], responseMessage);
+                this.server.log([this.cameraInfo.cameraId, 'error'], errorMessage);
+                await commandResponse.send(200, {
+                    [CommandResponseParams.StatusCode]: 400,
+                    [CommandResponseParams.Message]: errorMessage,
+                    [CommandResponseParams.Data]: ''
+                });
 
-            await commandResponse.send(200, {
-                message: responseMessage
-            });
+                return;
+            }
+
+            const startAvaPipelineResult = await this.startAvaProcessingInternal(pipelineInstanceName, mediaProfileToken);
+
+            if (startAvaPipelineResult) {
+                startAvaProcessingResponse[CommandResponseParams.Message] = `AVA edge processing started`;
+            }
+            else {
+                startAvaProcessingResponse[CommandResponseParams.StatusCode] = 500;
+                startAvaProcessingResponse[CommandResponseParams.Message] = `AVA edge processing failed to start`;
+            }
+
+            this.server.log([this.cameraInfo.cameraId, 'info'], startAvaProcessingResponse[CommandResponseParams.Message]);
 
             if (startAvaPipelineResult) {
                 this.lastInferenceTime = moment.utc(0);
@@ -689,8 +832,13 @@ export abstract class AvaCameraDevice {
             }
         }
         catch (ex) {
-            this.server.log([this.cameraInfo.cameraId, 'error'], `startAvaProcessing error: ${ex.message}`);
+            startAvaProcessingResponse[CommandResponseParams.StatusCode] = 500;
+            startAvaProcessingResponse[CommandResponseParams.Message] = `Error while trying to start AVA processing: ${ex.message}`;
+
+            this.server.log([this.cameraInfo.cameraId, 'error'], startAvaProcessingResponse[CommandResponseParams.Message]);
         }
+
+        await commandResponse.send(200, startAvaProcessingResponse);
     }
 
     @bind
@@ -698,30 +846,120 @@ export abstract class AvaCameraDevice {
     private async stopAvaProcessingDirectMethod(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
         this.server.log([this.cameraInfo.cameraId, 'info'], `${AvaEdgeOperationsCapability.cmStopAvaProcessing} command received`);
 
+        const stopAvaProcessingResponse = {
+            [CommandResponseParams.StatusCode]: 200,
+            [CommandResponseParams.Message]: '',
+            [CommandResponseParams.Data]: ''
+        };
+
         try {
-            clearInterval(this.inferenceInterval);
-            this.inferenceInterval = null;
+            const stopAvaProcessingResult = await this.stopAvaProcessingInternal();
+            if (stopAvaProcessingResult) {
+                stopAvaProcessingResponse[CommandResponseParams.Message] = `AVA edge processing successfully stopped`;
 
-            await this.sendMeasurement({
-                [AvaEdgeOperationsCapability.evStopAvaPipelineCommandReceived]: this.cameraInfo.cameraId
-            });
-
-            const stopAvaPipelineResult = await this.avaPipeline.stopAvaPipeline();
-            if (stopAvaPipelineResult) {
                 await this.sendMeasurement({
                     [OnvifCameraCapability.stCameraState]: CameraState.Inactive
                 });
             }
+            else {
+                stopAvaProcessingResponse[CommandResponseParams.StatusCode] = 500;
+                stopAvaProcessingResponse[CommandResponseParams.Message] = `AVA edge processing failed to stop`;
+            }
 
-            const responseMessage = `AVA Edge stop pipeline request: ${stopAvaPipelineResult ? 'succeeded' : 'failed'}`;
-            this.server.log([this.cameraInfo.cameraId, 'info'], responseMessage);
-
-            await commandResponse.send(200, {
-                message: responseMessage
-            });
+            this.server.log([this.cameraInfo.cameraId, 'info'], stopAvaProcessingResponse[CommandResponseParams.Message]);
         }
         catch (ex) {
-            this.server.log([this.cameraInfo.cameraId, 'error'], `Stop AVA error ${ex.message}`);
+            stopAvaProcessingResponse[CommandResponseParams.StatusCode] = 500;
+            stopAvaProcessingResponse[CommandResponseParams.Message] = `Error while trying to stop AVA processing: ${ex.message}`;
+
+            this.server.log([this.cameraInfo.cameraId, 'error'], stopAvaProcessingResponse[CommandResponseParams.Message]);
         }
+
+        await commandResponse.send(200, stopAvaProcessingResponse);
+    }
+
+    @bind
+    // @ts-ignore (commandRequest)
+    private async captureImageDirectMethod(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
+        this.server.log([this.cameraInfo.cameraId, 'info'], `Received device command: ${OnvifCameraCapability.cmCaptureImage}`);
+
+        const captureImageResponse = {
+            [CommandResponseParams.StatusCode]: 200,
+            [CommandResponseParams.Message]: '',
+            [CommandResponseParams.Data]: ''
+        };
+
+        const mediaProfileToken = commandRequest?.payload?.[CaptureImageCommandRequestParams.MediaProfileToken];
+
+        try {
+            if (!mediaProfileToken) {
+                const errorMessage = `Missing required parameters for command ${OnvifCameraCapability.cmCaptureImage}`;
+
+                this.server.log([this.cameraInfo.cameraId, 'error'], errorMessage);
+                await commandResponse.send(200, {
+                    [CommandResponseParams.StatusCode]: 400,
+                    [CommandResponseParams.Message]: errorMessage,
+                    [CommandResponseParams.Data]: ''
+                });
+
+                return;
+            }
+
+            const captureImageResult = await this.captureImage(mediaProfileToken);
+
+            if (captureImageResult) {
+                captureImageResponse[CommandResponseParams.Message] = `Image capture completed successfully`;
+            }
+            else {
+                captureImageResponse[CommandResponseParams.StatusCode] = 500;
+                captureImageResponse[CommandResponseParams.Message] = `An error occurred while capturing camera image`;
+            }
+
+            this.server.log(['IoTCentralService', 'info'], captureImageResponse[CommandResponseParams.Message]);
+        }
+        catch (ex) {
+            captureImageResponse[CommandResponseParams.StatusCode] = 500;
+            captureImageResponse[CommandResponseParams.Message] = `An error occurred while capturing camera image: ${ex.message}`;
+
+            this.server.log(['IoTCentralService', 'error'], captureImageResponse[CommandResponseParams.Message]);
+        }
+
+        await commandResponse.send(200, captureImageResponse);
+    }
+
+    @bind
+    // @ts-ignore (commandRequest)
+    private async restartCameraDirectMethod(commandRequest: DeviceMethodRequest, commandResponse: DeviceMethodResponse) {
+        this.server.log([this.cameraInfo.cameraId, 'info'], `Received device command: ${OnvifCameraCapability.cmRestartCamera}`);
+
+        const restartCameraResponse = {
+            [CommandResponseParams.StatusCode]: 200,
+            [CommandResponseParams.Message]: '',
+            [CommandResponseParams.Data]: ''
+        };
+
+        try {
+            await this.stopAvaProcessingInternal();
+
+            const restartCameraResult = await this.restartCamera();
+
+            if (restartCameraResult) {
+                restartCameraResponse[CommandResponseParams.Message] = `Camera restart command completed`;
+            }
+            else {
+                restartCameraResponse[CommandResponseParams.StatusCode] = 500;
+                restartCameraResponse[CommandResponseParams.Message] = `An error occurred while attempting to restart the camera device`;
+            }
+
+            this.server.log(['IoTCentralService', 'info'], restartCameraResponse[CommandResponseParams.Message]);
+        }
+        catch (ex) {
+            restartCameraResponse[CommandResponseParams.StatusCode] = 500;
+            restartCameraResponse[CommandResponseParams.Message] = `Error while attempting to restart camera: ${ex.message}`;
+
+            this.server.log(['IoTCentralService', 'error'], restartCameraResponse[CommandResponseParams.Message]);
+        }
+
+        await commandResponse.send(200, restartCameraResponse);
     }
 }
